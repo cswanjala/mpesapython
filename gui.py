@@ -3,6 +3,9 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+import requests
+import base64
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -311,7 +314,69 @@ class MpesaManager(tk.Tk):
     
     def send_stk_push(self, phone, amount):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"STK Push: {phone} - KES {amount} [{timestamp}]")
+        # Send STK push in background to avoid blocking the GUI
+        def worker():
+            try:
+                consumer_key = os.getenv('CONSUMER_KEY')
+                consumer_secret = os.getenv('CONSUMER_SECRET')
+                if not consumer_key or not consumer_secret:
+                    raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in .env')
+
+                # Get access token
+                auth_str = f"{consumer_key}:{consumer_secret}"
+                b64 = base64.b64encode(auth_str.encode()).decode()
+                auth_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+                headers = { 'Authorization': f'Basic {b64}' }
+                r = requests.get(auth_url, headers=headers, timeout=10)
+                r.raise_for_status()
+                token = r.json().get('access_token')
+                if not token:
+                    raise RuntimeError('Failed to obtain access token')
+
+                shortcode = os.getenv('SHORTCODE')
+                passkey = os.getenv('PASSKEY')
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                password = base64.b64encode(f"{shortcode}{passkey}{timestamp}".encode()).decode()
+
+                stk_url = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+                payload = {
+                    'BusinessShortCode': shortcode,
+                    'Password': password,
+                    'Timestamp': timestamp,
+                    'TransactionType': 'CustomerPayBillOnline',
+                    'Amount': amount,
+                    'PartyA': phone,
+                    'PartyB': shortcode,
+                    'PhoneNumber': phone,
+                    'CallBackURL': os.getenv('CALLBACK_URL'),
+                    'AccountReference': 'Payment',
+                    'TransactionDesc': 'Payment'
+                }
+                hdrs = {
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json'
+                }
+                resp = requests.post(stk_url, json=payload, headers=hdrs, timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+
+                # Update GUI on main thread
+                def on_success():
+                    dash = self.pages.get('dashboard')
+                    if dash:
+                        dash.add_history(f"STK Push initiated: {phone} KES {amount} — {data.get('CheckoutRequestID') or data}")
+                    messagebox.showinfo('STK Push', f"Request sent. Response: {data.get('ResponseDescription') or data}")
+                self.after(0, on_success)
+
+            except Exception as e:
+                def on_error():
+                    dash = self.pages.get('dashboard')
+                    if dash:
+                        dash.add_history(f"STK Push error: {str(e)}")
+                    messagebox.showerror('STK Push Error', str(e))
+                self.after(0, on_error)
+
+        threading.Thread(target=worker, daemon=True).start()
         # Add to transactions table here in real implementation
 
 if __name__ == "__main__":

@@ -8,6 +8,9 @@ import requests
 import base64
 import threading
 from config import CONSUMER_KEY, CONSUMER_SECRET, SHORTCODE, PASSKEY, CALLBACK_URL, C2B_CALLBACK_URL, SERVER_URL, LOGIN_URL, WEBSOCKET_URL, get
+import mpesa_client
+import importlib
+import config
 
 # Ensure .env loaded by config.py already
 
@@ -313,6 +316,52 @@ class Settings(Card):
         
         c2b_frame = tk.Frame(self.content, bg=SURFACE)
         c2b_frame.pack(fill="x", padx=20, pady=20)
+
+        # Credentials editing area (consumer keys, passkey, callback)
+        cred_frame = tk.Frame(self.content, bg=SURFACE)
+        cred_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        row_ck = tk.Frame(cred_frame, bg=SURFACE)
+        row_ck.pack(fill="x", pady=6)
+        tk.Label(row_ck, text="Consumer Key:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.consumer_entry = tk.Entry(row_ck, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        if CONSUMER_KEY:
+            self.consumer_entry.insert(0, CONSUMER_KEY)
+        self.consumer_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        row_cs = tk.Frame(cred_frame, bg=SURFACE)
+        row_cs.pack(fill="x", pady=6)
+        tk.Label(row_cs, text="Consumer Secret:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.consumer_secret_entry = tk.Entry(row_cs, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        if CONSUMER_SECRET:
+            self.consumer_secret_entry.insert(0, CONSUMER_SECRET)
+        self.consumer_secret_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        row_pk = tk.Frame(cred_frame, bg=SURFACE)
+        row_pk.pack(fill="x", pady=6)
+        tk.Label(row_pk, text="Passkey:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.passkey_entry = tk.Entry(row_pk, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        if PASSKEY:
+            self.passkey_entry.insert(0, PASSKEY)
+        self.passkey_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        row_cb = tk.Frame(cred_frame, bg=SURFACE)
+        row_cb.pack(fill="x", pady=6)
+        tk.Label(row_cb, text="STK Callback URL:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.stk_callback_entry = tk.Entry(row_cb, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        if CALLBACK_URL:
+            self.stk_callback_entry.insert(0, CALLBACK_URL)
+        self.stk_callback_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        # Save credentials button
+        save_row = tk.Frame(cred_frame, bg=SURFACE)
+        save_row.pack(fill="x", pady=(10, 0))
+        self.save_btn = ModernButton(save_row, "Save Credentials", self.save_credentials, "secondary")
+        self.save_btn.pack(side="left")
         
         # Shortcode input
         shortcode_row = tk.Frame(c2b_frame, bg=SURFACE)
@@ -422,6 +471,82 @@ class Settings(Card):
                     self.register_btn.config(state="normal", text="Register URLs")
                     messagebox.showerror('Registration Error', str(e))
                 self.after(0, on_error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def save_credentials(self):
+        """Persist entered credentials to .env and reload config at runtime."""
+        # Disable to prevent double clicks
+        self.save_btn.config(state='disabled', text='Saving...')
+
+        def worker():
+            try:
+                # Collect values
+                ck = self.consumer_entry.get().strip()
+                cs = self.consumer_secret_entry.get().strip()
+                pk = self.passkey_entry.get().strip()
+                cb = self.stk_callback_entry.get().strip()
+
+                env_path = os.path.join(os.path.dirname(__file__), '.env')
+                lines = []
+                if os.path.exists(env_path):
+                    with open(env_path, 'r', encoding='utf-8') as f:
+                        lines = f.read().splitlines()
+
+                def set_key(lines, key, val):
+                    key_eq = key + '='
+                    found = False
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith(key_eq):
+                            lines[i] = f"{key}={val}"
+                            found = True
+                            break
+                    if not found:
+                        lines.append(f"{key}={val}")
+                    return lines
+
+                if ck:
+                    lines = set_key(lines, 'CONSUMER_KEY', ck)
+                if cs:
+                    lines = set_key(lines, 'CONSUMER_SECRET', cs)
+                if pk:
+                    lines = set_key(lines, 'PASSKEY', pk)
+                if cb:
+                    lines = set_key(lines, 'CALLBACK_URL', cb)
+
+                # Also if SHORTCODE field exists elsewhere in settings, preserve it
+                sc = getattr(self, 'shortcode_entry', None)
+                if sc:
+                    scv = sc.get().strip()
+                    if scv:
+                        lines = set_key(lines, 'SHORTCODE', scv)
+
+                # Write back
+                with open(env_path, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(lines) + '\n')
+
+                # Reload config module so new values take effect
+                try:
+                    importlib.reload(config)
+                except Exception:
+                    pass
+
+                # Update mpesa_client module if it reads config at import
+                try:
+                    importlib.reload(mpesa_client)
+                except Exception:
+                    pass
+
+                def on_done():
+                    self.save_btn.config(state='normal', text='Save Credentials')
+                    messagebox.showinfo('Saved', 'Credentials saved to .env and reloaded')
+                self.after(0, on_done)
+
+            except Exception as e:
+                def on_err():
+                    self.save_btn.config(state='normal', text='Save Credentials')
+                    messagebox.showerror('Save Error', str(e))
+                self.after(0, on_err)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -577,95 +702,41 @@ class MpesaManager(tk.Tk):
         # Send STK push in background to avoid blocking the GUI
         def worker():
             try:
-                consumer_key = os.getenv('CONSUMER_KEY')
-                consumer_secret = os.getenv('CONSUMER_SECRET')
-                if not consumer_key or not consumer_secret:
-                    raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in .env')
-
-                # Get access token
-                auth_str = f"{consumer_key}:{consumer_secret}"
-                b64 = base64.b64encode(auth_str.encode()).decode()
-                auth_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
-                headers = { 'Authorization': f'Basic {b64}' }
-                r = requests.get(auth_url, headers=headers, timeout=10)
-                auth_resp_text = getattr(r, 'text', '')
-                auth_status = getattr(r, 'status_code', None)
-                auth_headers = dict(getattr(r, 'headers', {}))
-                try:
-                    r.raise_for_status()
-                except Exception as ex:
-                    # write auth failure details to debug log
-                    try:
-                        log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write('\n--- STK PUSH AUTH ERROR ' + datetime.utcnow().isoformat() + ' ---\n')
-                            f.write('AUTH URL: ' + auth_url + '\n')
-                            f.write('AUTH REQ HEADERS: ' + str(headers) + '\n')
-                            f.write('AUTH STATUS: ' + str(auth_status) + '\n')
-                            f.write('AUTH RESPONSE HEADERS: ' + str(auth_headers) + '\n')
-                            f.write('AUTH RESPONSE TEXT:\n' + auth_resp_text + '\n')
-                    except Exception:
-                        pass
-                    raise RuntimeError(f'Auth token request failed: {ex} - response: {auth_resp_text}')
-
-                token = r.json().get('access_token')
-                if not token:
-                    raise RuntimeError('Failed to obtain access token')
-
-                shortcode = SHORTCODE
-                passkey = PASSKEY
-                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                password = base64.b64encode(f"{shortcode}{passkey}{timestamp}".encode()).decode()
-
-                stk_url = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
-                payload = {
-                    'BusinessShortCode': shortcode,
-                    'Password': password,
-                    'Timestamp': timestamp,
-                    'TransactionType': 'CustomerPayBillOnline',
-                    'Amount': amount,
-                    'PartyA': phone,
-                    'PartyB': shortcode,
-                    'PhoneNumber': phone,
-                    'CallBackURL': CALLBACK_URL,
-                    'AccountReference': 'Payment',
-                    'TransactionDesc': 'Payment'
-                }
-                hdrs = {
-                    'Authorization': f'Bearer {token}',
-                    'Content-Type': 'application/json'
-                }
-                resp = requests.post(stk_url, json=payload, headers=hdrs, timeout=15)
+                # Use the reusable client module to perform STK push
+                resp = mpesa_client.lipa_na_mpesa_online(phone, int(amount))
+                print(resp)
                 stk_resp_text = getattr(resp, 'text', '')
-                stk_status = getattr(resp, 'status_code', None)
-                stk_resp_headers = dict(getattr(resp, 'headers', {}))
 
-                # write full auth and stk request/response to debug log
+                # Log request/response where possible
                 try:
                     log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
                     with open(log_path, 'a', encoding='utf-8') as f:
                         f.write('\n--- STK PUSH RUN ' + datetime.utcnow().isoformat() + ' ---\n')
-                        f.write('AUTH URL: ' + auth_url + '\n')
-                        f.write('AUTH REQ HEADERS: ' + str(headers) + '\n')
-                        f.write('AUTH STATUS: ' + str(auth_status) + '\n')
-                        f.write('AUTH RESPONSE HEADERS: ' + str(auth_headers) + '\n')
-                        f.write('AUTH RESPONSE TEXT:\n' + auth_resp_text + '\n')
-                        f.write('\nSTK REQUEST URL: ' + stk_url + '\n')
-                        f.write('STK REQ HEADERS: ' + str(hdrs) + '\n')
-                        f.write('STK REQ PAYLOAD: ' + str(payload) + '\n')
-                        f.write('STK STATUS: ' + str(stk_status) + '\n')
-                        f.write('STK RESPONSE HEADERS: ' + str(stk_resp_headers) + '\n')
+                        # resp.request may be a PreparedRequest
+                        try:
+                            req = resp.request
+                            f.write('STK REQUEST URL: ' + str(getattr(req, 'url', '')) + '\n')
+                            f.write('STK REQ HEADERS: ' + str(getattr(req, 'headers', {})) + '\n')
+                            body = getattr(req, 'body', '')
+                            if isinstance(body, bytes):
+                                try:
+                                    body = body.decode('utf-8')
+                                except Exception:
+                                    body = str(body)
+                            f.write('STK REQ BODY: ' + str(body) + '\n')
+                        except Exception:
+                            pass
+                        f.write('STK STATUS: ' + str(getattr(resp, 'status_code', '')) + '\n')
                         f.write('STK RESPONSE TEXT:\n' + stk_resp_text + '\n')
                 except Exception:
                     pass
 
-                # Try to raise for HTTP error; if the body contains mpesa error fields, extract them
+                # Interpret response
                 data = None
                 try:
                     resp.raise_for_status()
                     data = resp.json()
                 except Exception as ex:
-                    # attempt to parse JSON to extract Safaricom error fields
                     try:
                         j = resp.json()
                         err_code = j.get('errorCode') or j.get('error_code') or j.get('error')
@@ -674,7 +745,6 @@ class MpesaManager(tk.Tk):
                             raise RuntimeError(f'STK error from provider: {err_code} - {err_msg}')
                     except Exception:
                         pass
-                    # fallback to raising the original exception with body
                     raise RuntimeError(f'STK request failed: {ex} - response: {stk_resp_text}')
 
                 # Update GUI on main thread

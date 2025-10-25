@@ -1,0 +1,9 @@
+requests
+python-dotenv
+python-socketio
+python-engineio
+flask
+flask-socketio
+eventlet
+itsdangerous
+plyer

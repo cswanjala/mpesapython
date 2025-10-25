@@ -1,0 +1,51 @@
+
+[2025-10-23T05:43:50.746960] Send STK clicked - phone=254796247784 amount=1
+
+[2025-10-23T05:52:56.326581] Send STK clicked - phone=254796247784 amount=1
+
+--- STK PUSH RUN 2025-10-23T05:52:59.608583 ---
+AUTH URL: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+AUTH REQ HEADERS: {'Authorization': 'Basic ZFBkN2FPeE5lQkF0UUg3TGlnWU02ZTNHQm9PQzdwOUdkY0U4UUI0VlIzbGU5Tk5GOnNtY2ZWb3JZSzNpZGRtOU04YjdOSmpiMDRvN1RUZkNiQnZhOUtvMDhyZFBsVFZwWEVZUEZtbWVzazdHSlJ6SE0='}
+AUTH RESPONSE TEXT:
+{
+            "access_token": "6mlTiPlvqOKsvbdKRMGUEXGIJvhP",
+            "expires_in": "3599"
+        }
+        
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'Authorization': 'Bearer 6mlTiPlvqOKsvbdKRMGUEXGIJvhP', 'Content-Type': 'application/json'}
+STK REQ PAYLOAD: {'BusinessShortCode': '600977', 'Password': 'NjAwOTc3YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDIzMDg1MjU3', 'Timestamp': '20251023085257', 'TransactionType': 'CustomerPayBillOnline', 'Amount': 1, 'PartyA': '254796247784', 'PartyB': '600977', 'PhoneNumber': '254796247784', 'CallBackURL': 'https://c0bf6bf11d3c.ngrok-free.app/stk-callback', 'AccountReference': 'Payment', 'TransactionDesc': 'Payment'}
+STK RESPONSE TEXT:
+{
+                    "requestId":"5b65-43dd-b2ba-5fea49a390e837657",
+                    "errorCode": "500.001.1001",
+                    "errorMessage": "Merchant does not exist"
+                }
+            
+
+[2025-10-23T05:57:31.526572] Send STK clicked - phone=254796247784 amount=1
+
+--- STK PUSH RUN 2025-10-23T05:57:34.755578 ---
+AUTH URL: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+AUTH REQ HEADERS: {'Authorization': 'Basic ZFBkN2FPeE5lQkF0UUg3TGlnWU02ZTNHQm9PQzdwOUdkY0U4UUI0VlIzbGU5Tk5GOnNtY2ZWb3JZSzNpZGRtOU04YjdOSmpiMDRvN1RUZkNiQnZhOUtvMDhyZFBsVFZwWEVZUEZtbWVzazdHSlJ6SE0='}
+AUTH STATUS: 200
+AUTH RESPONSE HEADERS: {'content-type': 'application/json;charset=UTF-8', 'cache-control': 'no-store', 'x-request-id': '9c8a5af0-cbe6-4351-8ae6-26cd180edc21', 'date': 'Thu, 23 Oct 2025 05:57:33 GMT', 'Set-Cookie': 'visid_incap_2742146=RKSpATKOQQOUswxj4nYr7M3D+WgAAAAAQUIPAAAAAAATbckNL0JKPokx+12OrWsV; expires=Thu, 22 Oct 2026 15:34:35 GMT; HttpOnly; path=/; Domain=.safaricom.co.ke; Secure; SameSite=None, incap_ses_922_2742146=1UUzXQcBTlMrpVK0OZrLDM3D+WgAAAAA4wFXmjsYc/vzcGBgSV3D6w==; path=/; Domain=.safaricom.co.ke; Secure; SameSite=None', 'Strict-Transport-Security': 'max-age=31536000', 'X-CDN': 'Imperva', 'Content-Encoding': 'gzip', 'Transfer-Encoding': 'chunked', 'X-Iinfo': '46-123712549-123712712 NNYN CT(59 55 0) RT(1761199052312 935) q(0 0 1 -1) r(3 3) U16'}
+AUTH RESPONSE TEXT:
+{
+            "access_token": "BQQmipEJGzaPEWP3iiiA90nVOua8",
+            "expires_in": "3599"
+        }
+        
+
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'Authorization': 'Bearer BQQmipEJGzaPEWP3iiiA90nVOua8', 'Content-Type': 'application/json'}
+STK REQ PAYLOAD: {'BusinessShortCode': '600977', 'Password': 'NjAwOTc3YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDIzMDg1NzMz', 'Timestamp': '20251023085733', 'TransactionType': 'CustomerPayBillOnline', 'Amount': 1, 'PartyA': '254796247784', 'PartyB': '600977', 'PhoneNumber': '254796247784', 'CallBackURL': 'https://c0bf6bf11d3c.ngrok-free.app/stk-callback', 'AccountReference': 'Payment', 'TransactionDesc': 'Payment'}
+STK STATUS: 500
+STK RESPONSE HEADERS: {'content-type': 'application/json;charset=UTF-8', 'cache-control': 'no-store', 'x-request-id': '652d59c6-9f63-4b04-9dda-daff822c37ec', 'date': 'Thu, 23 Oct 2025 05:57:35 GMT', 'Set-Cookie': 'visid_incap_2742146=m55hbMi0ShCyhaeEhGtxT8/D+WgAAAAAQUIPAAAAAACuxcrrigdA/JNdisF3MZZw; expires=Thu, 22 Oct 2026 15:34:35 GMT; HttpOnly; path=/; Domain=.safaricom.co.ke; Secure; SameSite=None, incap_ses_922_2742146=DhJYCSB3sEMrrlK0OZrLDM/D+WgAAAAA3ik1PxIsf5NtGkZZiXb1GQ==; path=/; Domain=.safaricom.co.ke; Secure; SameSite=None', 'Strict-Transport-Security': 'max-age=31536000', 'X-CDN': 'Imperva', 'Content-Encoding': 'gzip', 'Transfer-Encoding': 'chunked', 'X-Iinfo': '49-166008435-166008650 NNYN CT(57 57 0) RT(1761199053792 887) q(0 0 1 -1) r(5 5) U6'}
+STK RESPONSE TEXT:
+{
+                    "requestId":"3f3d-4d87-9d36-400f81c5e10e7282",
+                    "errorCode": "500.001.1001",
+                    "errorMessage": "Merchant does not exist"
+                }
+            

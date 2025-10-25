@@ -1,14 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+import traceback
 import os
 from dotenv import load_dotenv
 import requests
 import base64
 import threading
+from config import CONSUMER_KEY, CONSUMER_SECRET, SHORTCODE, PASSKEY, CALLBACK_URL, C2B_CALLBACK_URL, SERVER_URL, LOGIN_URL, WEBSOCKET_URL, get
 
-# Load environment variables
-load_dotenv()
+# Ensure .env loaded by config.py already
 
 # Modern Color Palette
 PRIMARY = "#2563eb"
@@ -115,7 +116,8 @@ class Sidebar(tk.Frame):
         # Navigation items
         nav_items = [
             ("📊", "Dashboard"),
-            ("📋", "Transactions"), 
+            ("📋", "Transactions"),
+            ("🔌", "Connect"),
             ("⚙️", "Settings")
         ]
         
@@ -160,10 +162,15 @@ class Dashboard(Card):
                                     relief="solid", bd=1, bg=LIGHT)
         self.amount_entry.pack(fill="x", pady=(0, 20), ipady=8)
         
-        # Send button
-        self.send_btn = ModernButton(form, "Send STK Push", self.send_stk, "primary")
-        self.send_btn.pack()
-        
+        # Buttons row (Send + Test)
+        btn_row = tk.Frame(form, bg=SURFACE)
+        btn_row.pack(pady=(0, 10))
+
+        self.send_btn = ModernButton(btn_row, "Send STK Push", self.send_stk, "primary")
+        self.send_btn.pack(side="left", padx=(0, 8))
+
+    # removed Test STK button per request
+
         # Stats cards
         self.add_stats()
 
@@ -188,6 +195,24 @@ class Dashboard(Card):
             tk.Label(stat_card, text=label, font=(FONT_FAMILY, FONT_SIZE), 
                     fg=TEXT_SECONDARY, bg=SURFACE_VARIANT).pack()
 
+        # Simple history list
+        hist_frame = tk.Frame(self.content, bg=SURFACE)
+        hist_frame.pack(fill="x", padx=20, pady=(10, 20))
+        tk.Label(hist_frame, text="Activity", font=(FONT_FAMILY, FONT_SIZE, "bold"), fg=TEXT_PRIMARY, bg=SURFACE).pack(anchor="w")
+        self.history_list = tk.Listbox(hist_frame, height=4, bg=SURFACE, bd=0, fg=TEXT_SECONDARY)
+        self.history_list.pack(fill="x", pady=(6, 0))
+
+    def add_history(self, text):
+        try:
+            t = datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' — ' + str(text)
+            # keep last 50
+            if hasattr(self, 'history_list'):
+                self.history_list.insert(0, t)
+                if self.history_list.size() > 50:
+                    self.history_list.delete(50, 'end')
+        except Exception:
+            pass
+
     def send_stk(self):
         phone = self.phone_entry.get().strip()
         amount = self.amount_entry.get().strip()
@@ -206,6 +231,8 @@ class Dashboard(Card):
         
         self.callback(phone, amount_int)
         messagebox.showinfo("Success", f"STK Push sent to {phone} for KES {amount}")
+
+        
 
 class Transactions(Card):
     def __init__(self, parent):
@@ -250,6 +277,10 @@ class Transactions(Card):
         for item in sample_data:
             self.tree.insert("", "end", values=item)
 
+    def add_transaction(self, time, amount, phone, status, txid):
+        """Utility to add a transaction row from external events"""
+        self.tree.insert("", 0, values=(time, amount, phone, status, txid))
+
 class Settings(Card):
     def __init__(self, parent):
         super().__init__(parent)
@@ -262,10 +293,10 @@ class Settings(Card):
         info_frame.pack(fill="x", padx=20, pady=20)
         
         items = [
-            ("STK Callback URL", os.getenv('CALLBACK_URL', 'Not set')),
-            ("C2B Callback URL", os.getenv('C2B_CALLBACK_URL', 'Not set')),
-            ("Consumer Key", os.getenv('CONSUMER_KEY', 'Not set')[:10] + "..." if os.getenv('CONSUMER_KEY') else 'Not set'),
-            ("Consumer Secret", os.getenv('CONSUMER_SECRET', 'Not set')[:10] + "..." if os.getenv('CONSUMER_SECRET') else 'Not set')
+            ("STK Callback URL", CALLBACK_URL or 'Not set'),
+            ("C2B Callback URL", C2B_CALLBACK_URL or 'Not set'),
+            ("Consumer Key", (CONSUMER_KEY[:10] + '...') if CONSUMER_KEY else 'Not set'),
+            ("Consumer Secret", (CONSUMER_SECRET[:10] + '...') if CONSUMER_SECRET else 'Not set')
         ]
         
         for label, value in items:
@@ -290,7 +321,7 @@ class Settings(Card):
                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
         self.shortcode_entry = tk.Entry(shortcode_row, font=(FONT_FAMILY, FONT_SIZE+1),
                                       relief="solid", bd=1, bg=LIGHT)
-        self.shortcode_entry.insert(0, os.getenv('SHORTCODE', ''))
+        self.shortcode_entry.insert(0, SHORTCODE or '')
         self.shortcode_entry.pack(side="left", fill="x", expand=True, ipady=4)
         
         # Validation URL input
@@ -345,17 +376,22 @@ class Settings(Card):
         def worker():
             try:
                 # Get access token
-                consumer_key = os.getenv('CONSUMER_KEY')
-                consumer_secret = os.getenv('CONSUMER_SECRET')
+                consumer_key = CONSUMER_KEY
+                consumer_secret = CONSUMER_SECRET
                 if not consumer_key or not consumer_secret:
-                    raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in .env')
+                    raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in config/.env')
 
                 auth_str = f"{consumer_key}:{consumer_secret}"
                 b64 = base64.b64encode(auth_str.encode()).decode()
                 auth_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
                 headers = {'Authorization': f'Basic {b64}'}
                 r = requests.get(auth_url, headers=headers, timeout=10)
-                r.raise_for_status()
+                r = requests.get(auth_url, headers=headers, timeout=10)
+                try:
+                    r.raise_for_status()
+                except Exception as ex:
+                    body = getattr(r, 'text', '')
+                    raise RuntimeError(f'Auth token request failed: {ex} - response: {body}')
                 token = r.json().get('access_token')
                 if not token:
                     raise RuntimeError('Failed to obtain access token')
@@ -377,15 +413,113 @@ class Settings(Card):
                 data = resp.json()
 
                 def on_success():
-                    self.register_btn.config(state="normal", text="Register URLs")
-                    messagebox.showinfo('Success', f"URLs registered successfully! Response: {data.get('ResponseDescription', str(data))}")
-                self.after(0, on_success)
-
+                            consumer_key = CONSUMER_KEY
+                            consumer_secret = CONSUMER_SECRET
+                            if not consumer_key or not consumer_secret:
+                                raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in config/.env')
             except Exception as e:
                 def on_error():
                     self.register_btn.config(state="normal", text="Register URLs")
                     messagebox.showerror('Registration Error', str(e))
                 self.after(0, on_error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+
+class LoginPage(Card):
+    """Login/Connect page for merchants to authenticate and receive notifications"""
+    def __init__(self, parent, manager):
+        super().__init__(parent)
+        self.pack(fill="x", padx=20, pady=10)
+
+        self.add_title("Connect / Login")
+
+        # container frame inside the card
+        frame = tk.Frame(self.content, bg=SURFACE)
+        frame.pack(fill="x", padx=20, pady=10)
+
+        # Server URL (optional override)
+        row = tk.Frame(frame, bg=SURFACE)
+        row.pack(fill="x", pady=8)
+        tk.Label(row, text="Server URL:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.server_entry = tk.Entry(row, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        self.server_entry.insert(0, SERVER_URL or 'http://localhost:5000')
+        self.server_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        # Username / merchant id
+        row2 = tk.Frame(frame, bg=SURFACE)
+        row2.pack(fill="x", pady=8)
+        tk.Label(row2, text="Merchant ID / Username:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.username_entry = tk.Entry(row2, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT)
+        self.username_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        # Password (optional)
+        row3 = tk.Frame(frame, bg=SURFACE)
+        row3.pack(fill="x", pady=8)
+        tk.Label(row3, text="Password (optional):", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.password_entry = tk.Entry(row3, font=(FONT_FAMILY, FONT_SIZE+1), relief="solid", bd=1, bg=LIGHT, show="*")
+        self.password_entry.pack(side="left", fill="x", expand=True, ipady=4)
+
+        # Connect button
+        btn_row = tk.Frame(frame, bg=SURFACE)
+        btn_row.pack(fill="x", pady=(20, 0))
+        self.connect_btn = ModernButton(btn_row, "Connect", self.on_connect, "primary")
+        self.connect_btn.pack()
+
+        # Status
+        self.status_label = tk.Label(self.content, text="Not connected", fg=TEXT_SECONDARY, bg=SURFACE)
+        self.status_label.pack(anchor="w", padx=20, pady=(10, 0))
+
+        # keep reference to manager
+        self.manager = manager
+
+    def on_connect(self):
+        server = self.server_entry.get().rstrip('/')
+        username = self.username_entry.get().strip()
+        password = self.password_entry.get().strip()
+
+        if not username:
+            messagebox.showerror('Error', 'Please enter your Merchant ID / username')
+            return
+
+        # Disable UI while connecting
+        self.connect_btn.config(state='disabled', text='Connecting...')
+
+        def worker():
+            try:
+                # Try login endpoint if provided
+                login_url = LOGIN_URL or f"{server}/api/login"
+                token = None
+                merchant_id = username
+
+                try:
+                    resp = requests.post(login_url, json={'username': username, 'password': password}, timeout=8)
+                    if resp.status_code == 200:
+                        j = resp.json()
+                        token = j.get('token') or j.get('access_token')
+                        merchant_id = j.get('merchant_id') or merchant_id
+                except Exception:
+                    # If login fails, we'll proceed with username only (server may accept ws query param)
+                    token = None
+
+                # Start socket.io client (pass server base URL)
+                ws_url = WEBSOCKET_URL or server
+                self.manager.start_ws_client(ws_url, token, merchant_id)
+
+                def on_success():
+                    self.status_label.config(text=f"Connected as {merchant_id}")
+                    self.connect_btn.config(state='normal', text='Connect')
+                    messagebox.showinfo('Connected', 'Connected to server for notifications')
+                self.manager.after(0, on_success)
+
+            except Exception as e:
+                def on_err():
+                    self.connect_btn.config(state='normal', text='Connect')
+                    messagebox.showerror('Connection Error', str(e))
+                self.manager.after(0, on_err)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -411,6 +545,7 @@ class MpesaManager(tk.Tk):
         self.pages = {
             "dashboard": Dashboard(main_frame, self.send_stk_push),
             "transactions": Transactions(main_frame),
+            "connect": LoginPage(main_frame, self),
             "settings": Settings(main_frame)
         }
     
@@ -431,6 +566,14 @@ class MpesaManager(tk.Tk):
     
     def send_stk_push(self, phone, amount):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Add a quick log entry that Send was clicked
+        try:
+            log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n[{datetime.utcnow().isoformat()}] Send STK clicked - phone={phone} amount={amount}\n")
+        except Exception:
+            pass
+
         # Send STK push in background to avoid blocking the GUI
         def worker():
             try:
@@ -445,13 +588,32 @@ class MpesaManager(tk.Tk):
                 auth_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
                 headers = { 'Authorization': f'Basic {b64}' }
                 r = requests.get(auth_url, headers=headers, timeout=10)
-                r.raise_for_status()
+                auth_resp_text = getattr(r, 'text', '')
+                auth_status = getattr(r, 'status_code', None)
+                auth_headers = dict(getattr(r, 'headers', {}))
+                try:
+                    r.raise_for_status()
+                except Exception as ex:
+                    # write auth failure details to debug log
+                    try:
+                        log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
+                        with open(log_path, 'a', encoding='utf-8') as f:
+                            f.write('\n--- STK PUSH AUTH ERROR ' + datetime.utcnow().isoformat() + ' ---\n')
+                            f.write('AUTH URL: ' + auth_url + '\n')
+                            f.write('AUTH REQ HEADERS: ' + str(headers) + '\n')
+                            f.write('AUTH STATUS: ' + str(auth_status) + '\n')
+                            f.write('AUTH RESPONSE HEADERS: ' + str(auth_headers) + '\n')
+                            f.write('AUTH RESPONSE TEXT:\n' + auth_resp_text + '\n')
+                    except Exception:
+                        pass
+                    raise RuntimeError(f'Auth token request failed: {ex} - response: {auth_resp_text}')
+
                 token = r.json().get('access_token')
                 if not token:
                     raise RuntimeError('Failed to obtain access token')
 
-                shortcode = os.getenv('SHORTCODE')
-                passkey = os.getenv('PASSKEY')
+                shortcode = SHORTCODE
+                passkey = PASSKEY
                 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
                 password = base64.b64encode(f"{shortcode}{passkey}{timestamp}".encode()).decode()
 
@@ -465,7 +627,7 @@ class MpesaManager(tk.Tk):
                     'PartyA': phone,
                     'PartyB': shortcode,
                     'PhoneNumber': phone,
-                    'CallBackURL': os.getenv('CALLBACK_URL'),
+                    'CallBackURL': CALLBACK_URL,
                     'AccountReference': 'Payment',
                     'TransactionDesc': 'Payment'
                 }
@@ -474,8 +636,46 @@ class MpesaManager(tk.Tk):
                     'Content-Type': 'application/json'
                 }
                 resp = requests.post(stk_url, json=payload, headers=hdrs, timeout=15)
-                resp.raise_for_status()
-                data = resp.json()
+                stk_resp_text = getattr(resp, 'text', '')
+                stk_status = getattr(resp, 'status_code', None)
+                stk_resp_headers = dict(getattr(resp, 'headers', {}))
+
+                # write full auth and stk request/response to debug log
+                try:
+                    log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write('\n--- STK PUSH RUN ' + datetime.utcnow().isoformat() + ' ---\n')
+                        f.write('AUTH URL: ' + auth_url + '\n')
+                        f.write('AUTH REQ HEADERS: ' + str(headers) + '\n')
+                        f.write('AUTH STATUS: ' + str(auth_status) + '\n')
+                        f.write('AUTH RESPONSE HEADERS: ' + str(auth_headers) + '\n')
+                        f.write('AUTH RESPONSE TEXT:\n' + auth_resp_text + '\n')
+                        f.write('\nSTK REQUEST URL: ' + stk_url + '\n')
+                        f.write('STK REQ HEADERS: ' + str(hdrs) + '\n')
+                        f.write('STK REQ PAYLOAD: ' + str(payload) + '\n')
+                        f.write('STK STATUS: ' + str(stk_status) + '\n')
+                        f.write('STK RESPONSE HEADERS: ' + str(stk_resp_headers) + '\n')
+                        f.write('STK RESPONSE TEXT:\n' + stk_resp_text + '\n')
+                except Exception:
+                    pass
+
+                # Try to raise for HTTP error; if the body contains mpesa error fields, extract them
+                data = None
+                try:
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception as ex:
+                    # attempt to parse JSON to extract Safaricom error fields
+                    try:
+                        j = resp.json()
+                        err_code = j.get('errorCode') or j.get('error_code') or j.get('error')
+                        err_msg = j.get('errorMessage') or j.get('error_message') or j.get('message')
+                        if err_code or err_msg:
+                            raise RuntimeError(f'STK error from provider: {err_code} - {err_msg}')
+                    except Exception:
+                        pass
+                    # fallback to raising the original exception with body
+                    raise RuntimeError(f'STK request failed: {ex} - response: {stk_resp_text}')
 
                 # Update GUI on main thread
                 def on_success():
@@ -486,15 +686,110 @@ class MpesaManager(tk.Tk):
                 self.after(0, on_success)
 
             except Exception as e:
-                def on_error():
+                err = str(e)
+                def on_error(err=err):
                     dash = self.pages.get('dashboard')
                     if dash:
-                        dash.add_history(f"STK Push error: {str(e)}")
-                    messagebox.showerror('STK Push Error', str(e))
+                        dash.add_history(f"STK Push error: {err}")
+                    messagebox.showerror('STK Push Error', err)
                 self.after(0, on_error)
 
         threading.Thread(target=worker, daemon=True).start()
         # Add to transactions table here in real implementation
+
+        
+
+    # --- WebSocket client for real-time notifications ---
+    def start_ws_client(self, ws_url, token=None, merchant_id=None):
+        """Start a Socket.IO client to receive server notifications.
+
+        Uses python-socketio client. The server should emit 'notification' events with
+        payloads like: {"type": "transaction", "data": {...}}.
+        """
+        try:
+            import socketio
+        except Exception:
+            messagebox.showerror('Missing Dependency', 'python-socketio is required. Install with: pip install python-socketio')
+            return
+
+        # If a client already exists, disconnect it first
+        try:
+            if hasattr(self, '_sio') and self._sio:
+                try:
+                    self._sio.disconnect()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        self._sio = socketio.Client(reconnection=True, logger=False, engineio_logger=False)
+
+        @self._sio.event
+        def connect():
+            self.after(0, lambda: messagebox.showinfo('WS', 'Connected to notification server'))
+            # Join merchant room if merchant_id provided
+            try:
+                if merchant_id:
+                    self._sio.emit('join', {'merchant_id': merchant_id})
+            except Exception:
+                pass
+
+        @self._sio.event
+        def disconnect():
+            self.after(0, lambda: messagebox.showinfo('WS', 'Disconnected from notification server'))
+
+        @self._sio.on('notification')
+        def on_notification(msg):
+            try:
+                if isinstance(msg, dict) and msg.get('type') == 'transaction':
+                    d = msg.get('data', {})
+                    ttime = d.get('time') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    amount = d.get('amount', '')
+                    phone = d.get('phone', '')
+                    status = d.get('status', '✅ Received')
+                    txid = d.get('txid', d.get('CheckoutRequestID') or d.get('transaction_id', ''))
+
+                    tx_page = self.pages.get('transactions')
+                    if tx_page:
+                        tx_page.add_transaction(ttime, amount, phone, status, txid)
+
+                    # Non-blocking popup
+                    self.after(0, lambda: messagebox.showinfo('Payment Notification', f'Payment received {amount} from {phone} (TX: {txid})'))
+                else:
+                    # For other messages, just show raw
+                    self.after(0, lambda: messagebox.showinfo('Notification', str(msg)))
+            except Exception as e:
+                err = str(e)
+                try:
+                    self.after(0, lambda err=err: messagebox.showerror('Notification Error', err))
+                except Exception:
+                    pass
+
+        # Build connect URL (socketio client will add /socket.io if needed)
+        connect_params = {}
+        if token:
+            connect_params['token'] = token
+        if merchant_id:
+            connect_params['merchant_id'] = merchant_id
+
+        def run_client():
+            try:
+                # Using query string for token/merchant (server will parse query params)
+                qs = '&'.join([f"{k}={v}" for k, v in connect_params.items()])
+                url = ws_url
+                if qs:
+                    url = f"{ws_url}?{qs}"
+                self._sio.connect(url, wait=True)
+                self._sio.wait()
+            except Exception as e:
+                err = str(e)
+                try:
+                    self.after(0, lambda err=err: messagebox.showerror('Connection Error', err))
+                except Exception:
+                    pass
+
+        self._sio_thread = threading.Thread(target=run_client, daemon=True)
+        self._sio_thread.start()
 
 if __name__ == "__main__":
     app = MpesaManager()

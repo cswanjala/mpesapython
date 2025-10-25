@@ -46,7 +46,8 @@ def lipa_na_mpesa_online(phone_number: str, amount: int,
                          consumer_secret: Optional[str] = None,
                          shortcode: Optional[str] = None,
                          passkey: Optional[str] = None,
-                         callback_url: Optional[str] = None) -> requests.Response:
+                         callback_url: Optional[str] = None,
+                         merchant_id: Optional[str] = None) -> requests.Response:
     """Initiate an STK Push (Lipa Na M-Pesa Online).
 
     Returns the requests.Response from the STK endpoint so callers can inspect status/text.
@@ -80,7 +81,10 @@ def lipa_na_mpesa_online(phone_number: str, amount: int,
         'PhoneNumber': phone_number,
         'CallBackURL': callback_url,
         'AccountReference': account_reference,
-        'TransactionDesc': transaction_desc
+        'TransactionDesc': transaction_desc,
+        'Metadata': {
+            'merchant_id': merchant_id or shortcode  # Fall back to shortcode if no merchant_id
+        }
     }
 
     url = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'

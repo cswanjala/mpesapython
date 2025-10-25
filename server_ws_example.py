@@ -67,11 +67,29 @@ def stk_callback():
     conn.commit()
     conn.close()
 
-    # Emit to merchant room if merchant id known, otherwise broadcast
-    if merchant:
-        socketio.emit('notification', {'type': 'transaction', 'data': data}, room=merchant)
-    else:
-        socketio.emit('notification', {'type': 'transaction', 'data': data}, broadcast=True)
+    # Emit to merchant room if merchant id known, otherwise to all rooms
+    try:
+        # Try to get merchant ID from metadata first (our new field)
+        metadata = data.get('Metadata', {})
+        if isinstance(metadata, dict):
+            merchant = metadata.get('merchant_id') or merchant
+
+        # Extract merchant from Body.stkCallback if present
+        try:
+            body = data.get('Body', {}).get('stkCallback', {})
+            if body:
+                merchant = merchant or body.get('BusinessShortCode')
+        except Exception:
+            pass
+
+        if merchant:
+            print(f"[{datetime.now().isoformat()}] Emitting STK notification to merchant room: {merchant}")
+            socketio.emit('notification', {'type': 'transaction', 'data': data}, room=merchant)
+        else:
+            print(f"[{datetime.now().isoformat()}] Broadcasting STK notification (no merchant found in data)")
+            socketio.emit('notification', {'type': 'transaction', 'data': data}, to=None)  # to=None means all clients
+    except Exception as e:
+        print(f"Error emitting notification: {e}")
     return jsonify({'status': 'ok'})
 
 @app.route('/c2b-callback', methods=['POST'])
@@ -85,10 +103,15 @@ def c2b_callback():
     conn.commit()
     conn.close()
 
-    if merchant:
-        socketio.emit('notification', {'type': 'transaction', 'data': data}, room=merchant)
-    else:
-        socketio.emit('notification', {'type': 'transaction', 'data': data}, broadcast=True)
+    try:
+        if merchant:
+            print(f"[{datetime.now().isoformat()}] Emitting C2B notification to merchant room: {merchant}")
+            socketio.emit('notification', {'type': 'transaction', 'data': data}, room=merchant)
+        else:
+            print(f"[{datetime.now().isoformat()}] Broadcasting C2B notification (no merchant)")
+            socketio.emit('notification', {'type': 'transaction', 'data': data}, to=None)  # to=None means all clients
+    except Exception as e:
+        print(f"Error emitting notification: {e}")
     return jsonify({'status': 'ok'})
 
 

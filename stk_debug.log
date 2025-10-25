@@ -188,3 +188,37 @@ STK RESPONSE TEXT:
             "CustomerMessage":"Success. Request accepted for processing"
         }
         
+
+[2025-10-25T14:09:29.277518] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:09:32.147648 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer gYGXhUkIVZeXXGtyP33sBwXOP48Q', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTcwOTMw", "Timestamp": "20251025170930", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1f5d-424c-bb1f-e6a14457d7438501",
+            "CheckoutRequestID":"ws_CO_25102025170933592796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:15:43.073960] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:15:46.146388 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer 1Ifh1U0vp5LeETlBFx5iPztUfG1g', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTcxNTQ0", "Timestamp": "20251025171544", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"25a4-4cec-8aad-7f446ee0cced10659",
+            "CheckoutRequestID":"ws_CO_25102025171547563796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        

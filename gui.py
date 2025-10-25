@@ -637,6 +637,8 @@ class LoginPage(Card):
                 def on_success():
                     self.status_label.config(text=f"Connected as {merchant_id}")
                     self.connect_btn.config(state='normal', text='Connect')
+                    # Store merchant_id in manager for STK push
+                    self.manager._current_merchant_id = merchant_id
                     messagebox.showinfo('Connected', 'Connected to server for notifications')
                 self.manager.after(0, on_success)
 
@@ -691,11 +693,14 @@ class MpesaManager(tk.Tk):
     
     def send_stk_push(self, phone, amount):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Get current merchant_id if logged in
+        merchant_id = getattr(self, '_current_merchant_id', None)
+        
         # Add a quick log entry that Send was clicked
         try:
             log_path = os.path.join(os.path.dirname(__file__), 'stk_debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(f"\n[{datetime.utcnow().isoformat()}] Send STK clicked - phone={phone} amount={amount}\n")
+                f.write(f"\n[{datetime.utcnow().isoformat()}] Send STK clicked - phone={phone} amount={amount} merchant={merchant_id}\n")
         except Exception:
             pass
 
@@ -806,6 +811,7 @@ class MpesaManager(tk.Tk):
 
         @self._sio.event
         def disconnect():
+            self._current_merchant_id = None  # Clear merchant_id on disconnect
             self.after(0, lambda: messagebox.showinfo('WS', 'Disconnected from notification server'))
 
         @self._sio.on('notification')

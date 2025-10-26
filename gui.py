@@ -284,6 +284,88 @@ class Transactions(Card):
         """Utility to add a transaction row from external events"""
         self.tree.insert("", 0, values=(time, amount, phone, status, txid))
 
+    def load_from_server(self, server_url=None, limit=100):
+        """Fetch recent callbacks from server and populate the transactions table.
+
+        This runs in a background thread and updates the tree on the main thread.
+        """
+        if not server_url:
+            return
+
+        def worker():
+            try:
+                url = server_url.rstrip('/') + f"/api/callbacks?limit={limit}"
+                resp = requests.get(url, timeout=8)
+                resp.raise_for_status()
+                j = resp.json()
+                callbacks = j.get('callbacks', [])
+
+                # prepare rows (most recent first already)
+                rows = []
+                for cb in callbacks:
+                    created = cb.get('created_at') or ''
+                    payload = cb.get('payload') or {}
+                    amount = ''
+                    phone = ''
+                    status = ''
+                    txid = ''
+
+                    try:
+                        # STK callback shape
+                        stk = payload.get('Body', {}).get('stkCallback') if isinstance(payload, dict) else None
+                        if stk:
+                            status = stk.get('ResultDesc') or (f"Code {stk.get('ResultCode')}" if stk.get('ResultCode') is not None else '')
+                            txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or stk.get('MerchantRequestID') or ''
+                            cbmeta = stk.get('CallbackMetadata') or stk.get('Callback') or {}
+                            items = cbmeta.get('Item') if isinstance(cbmeta, dict) else None
+                            if not items and isinstance(cbmeta, list):
+                                items = cbmeta
+                            if items and isinstance(items, list):
+                                for it in items:
+                                    name = it.get('Name') or it.get('name')
+                                    val = it.get('Value')
+                                    if not name:
+                                        continue
+                                    if name.lower() == 'amount':
+                                        amount = str(val)
+                                    elif name.lower() in ('phonenumber', 'phone'):
+                                        phone = str(val)
+                                    elif name.lower() in ('mpesareceiptnumber',):
+                                        txid = val or txid
+                    except Exception:
+                        pass
+
+                    # fallbacks
+                    if not amount:
+                        amount = payload.get('amount') if isinstance(payload, dict) else ''
+                    if not phone:
+                        phone = payload.get('phone') if isinstance(payload, dict) else ''
+                    if not txid:
+                        txid = payload.get('txid') if isinstance(payload, dict) else txid
+
+                    rows.append((created, amount, phone, status, txid))
+
+                # update UI
+                def update_ui():
+                    try:
+                        # clear existing
+                        for i in self.tree.get_children():
+                            self.tree.delete(i)
+                        for r in rows:
+                            self.tree.insert('', 'end', values=r)
+                    except Exception:
+                        pass
+
+                self.tree.after(0, update_ui)
+
+            except Exception as e:
+                try:
+                    self.tree.after(0, lambda: messagebox.showerror('Load Error', str(e)))
+                except Exception:
+                    pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
 class Settings(Card):
     def __init__(self, parent):
         super().__init__(parent)
@@ -639,6 +721,11 @@ class LoginPage(Card):
                     self.connect_btn.config(state='normal', text='Connect')
                     # Store merchant_id in manager for STK push
                     self.manager._current_merchant_id = merchant_id
+                    # Store server base URL (HTTP) so transactions can be fetched
+                    try:
+                        self.manager._server_url = server
+                    except Exception:
+                        pass
                     messagebox.showinfo('Connected', 'Connected to server for notifications')
                 self.manager.after(0, on_success)
 
@@ -683,6 +770,16 @@ class MpesaManager(tk.Tk):
         
         # Show selected page
         self.pages[page_name].pack(fill="both", expand=True)
+        
+        # If transactions page, refresh from server
+        try:
+            if page_name == 'transactions':
+                tx_page = self.pages.get('transactions')
+                server_base = getattr(self, '_server_url', None) or SERVER_URL
+                if tx_page and server_base:
+                    tx_page.load_from_server(server_base, limit=200)
+        except Exception:
+            pass
         
         # Update sidebar highlight
         for key, btn in self.sidebar.buttons.items():
@@ -797,22 +894,45 @@ class MpesaManager(tk.Tk):
         except Exception:
             pass
 
-        self._sio = socketio.Client(reconnection=True, logger=False, engineio_logger=False)
+        # Use websocket transport explicitly (more reliable for desktop clients)
+        # Enable logging for easier debugging of connection issues
+        self._sio = socketio.Client(reconnection=True, logger=True, engineio_logger=True)
 
         @self._sio.event
         def connect():
-            self.after(0, lambda: messagebox.showinfo('WS', 'Connected to notification server'))
-            # Join merchant room if merchant_id provided
+            # Update a small status label instead of a blocking messagebox so the client can stay connected
+            try:
+                if hasattr(self, 'status_label'):
+                    self.after(0, lambda: self.status_label.config(text='Connected to notification server'))
+            except Exception:
+                pass
+            # Join merchant room if merchant_id provided (optional; server currently broadcasts to all)
             try:
                 if merchant_id:
                     self._sio.emit('join', {'merchant_id': merchant_id})
+                    # remember current merchant id on successful connect
+                    self._current_merchant_id = merchant_id
+            except Exception:
+                pass
+
+        @self._sio.event
+        def connect_error(data):
+            # Called on connection failure
+            try:
+                if hasattr(self, 'status_label'):
+                    self.after(0, lambda: self.status_label.config(text=f'WS connect error'))
+                self.after(0, lambda: messagebox.showerror('WS Connect Error', f'Failed to connect to {ws_url}: {data}'))
             except Exception:
                 pass
 
         @self._sio.event
         def disconnect():
             self._current_merchant_id = None  # Clear merchant_id on disconnect
-            self.after(0, lambda: messagebox.showinfo('WS', 'Disconnected from notification server'))
+            try:
+                if hasattr(self, 'status_label'):
+                    self.after(0, lambda: self.status_label.config(text='Disconnected'))
+            except Exception:
+                pass
 
         @self._sio.on('notification')
         def on_notification(msg):
@@ -919,7 +1039,12 @@ class MpesaManager(tk.Tk):
                 url = ws_url
                 if qs:
                     url = f"{ws_url}?{qs}"
-                self._sio.connect(url, wait=True)
+                # Prefer websocket transport for desktop clients (more stable than polling)
+                try:
+                    self._sio.connect(url, transports=['websocket'], wait=True)
+                except TypeError:
+                    # Older python-socketio versions may not accept transports arg on connect; fallback
+                    self._sio.connect(url, wait=True)
                 self._sio.wait()
             except Exception as e:
                 err = str(e)

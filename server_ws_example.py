@@ -19,6 +19,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from dotenv import load_dotenv
 import os
 import sqlite3
+import json
 from itsdangerous import URLSafeSerializer
 from datetime import datetime
 
@@ -62,8 +63,12 @@ def stk_callback():
     merchant = data.get('merchant_id') or data.get('BusinessShortCode') or data.get('ShortCode')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    try:
+        payload_text = json.dumps(data)
+    except Exception:
+        payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'stk', str(data), datetime.utcnow().isoformat()))
+              (merchant, 'stk', payload_text, datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
 
@@ -84,8 +89,12 @@ def c2b_callback():
     merchant = data.get('merchant_id') or data.get('BusinessShortCode') or data.get('ShortCode')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    try:
+        payload_text = json.dumps(data)
+    except Exception:
+        payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'c2b', str(data), datetime.utcnow().isoformat()))
+              (merchant, 'c2b', payload_text, datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
 
@@ -98,6 +107,30 @@ def c2b_callback():
     except Exception as e:
         print(f"Error emitting notification: {e}")
     return jsonify({'status': 'ok'})
+
+
+@app.route('/api/callbacks', methods=['GET'])
+def api_callbacks():
+    """Return recent callbacks stored in the server DB.
+
+    Query params:
+    - limit: number of records to return (default 100)
+    """
+    limit = int(request.args.get('limit', '100'))
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, merchant_id, type, payload, created_at FROM callbacks ORDER BY id DESC LIMIT ?', (limit,))
+    rows = c.fetchall()
+    conn.close()
+
+    out = []
+    for rid, merchant_id, typ, payload_text, created_at in rows:
+        try:
+            payload = json.loads(payload_text)
+        except Exception:
+            payload = payload_text
+        out.append({'id': rid, 'merchant_id': merchant_id, 'type': typ, 'payload': payload, 'created_at': created_at})
+    return jsonify({'callbacks': out})
 
 
 @app.route('/api/login', methods=['POST'])

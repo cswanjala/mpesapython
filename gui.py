@@ -956,57 +956,80 @@ class MpesaManager(tk.Tk):
                     status = 'Received'
                     txid = ''
 
-                    # If this is an M-Pesa STK callback (nested Body -> stkCallback)
-                    try:
-                        stk = d.get('Body', {}).get('stkCallback') if isinstance(d, dict) else None
-                        if stk:
-                            # Result fields
-                            res_desc = stk.get('ResultDesc') or ''
-                            res_code = stk.get('ResultCode')
-                            status = f"{res_desc}" if res_desc else (f"Code {res_code}" if res_code is not None else status)
+                    # Process different callback types
+                    callback_type = msg.get('type', '')
+                    
+                    if callback_type == 'c2b_confirmation':
+                        # C2B callback structure
+                        try:
+                            # Extract common fields
+                            txid = d.get('TransID', '')
+                            amount = d.get('TransAmount', '')
+                            phone = d.get('MSISDN', '')
+                            
+                            # Format time from TransTime (YYYYMMDDHHmmss)
+                            trans_time = d.get('TransTime', '')
+                            if trans_time and len(trans_time) >= 14:
+                                ttime = datetime.strptime(trans_time, '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+                            
+                            # Create status from transaction info
+                            name = d.get('FirstName', '')
+                            ref = d.get('BillRefNumber', '')
+                            status = f"✅ {d.get('TransactionType', '')} | Ref: {ref}"
+                            if name:
+                                status += f" | {name}"
+                        except Exception:
+                            pass
+                            
+                    elif 'stkCallback' in str(d):
+                        # STK callback structure
+                        try:
+                            stk = d.get('Body', {}).get('stkCallback') if isinstance(d, dict) else None
+                            if stk:
+                                # Result fields
+                                res_desc = stk.get('ResultDesc') or ''
+                                res_code = stk.get('ResultCode')
+                                status = f"{'✅' if res_code == 0 else '❌'} {res_desc}" if res_desc else (f"Code {res_code}" if res_code is not None else status)
 
-                            # CheckoutRequestID or MerchantRequestID
-                            txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or stk.get('MerchantRequestID') or ''
+                                # CheckoutRequestID or MerchantRequestID
+                                txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or stk.get('MerchantRequestID') or ''
 
-                            # CallbackMetadata contains Item list
-                            cb = stk.get('CallbackMetadata') or stk.get('Callback') or {}
-                            items = cb.get('Item') if isinstance(cb, dict) else None
-                            if not items and isinstance(cb, list):
-                                items = cb
+                                # CallbackMetadata contains Item list
+                                cb = stk.get('CallbackMetadata') or stk.get('Callback') or {}
+                                items = cb.get('Item') if isinstance(cb, dict) else None
+                                if not items and isinstance(cb, list):
+                                    items = cb
 
-                            if items and isinstance(items, list):
-                                for it in items:
-                                    name = it.get('Name') or it.get('name')
-                                    val = it.get('Value')
-                                    if not name:
-                                        continue
-                                    if name.lower() == 'amount':
-                                        amount = str(val)
-                                    elif name.lower() in ('phonenumber', 'phone'):
-                                        phone = str(val)
-                                    elif name.lower() in ('mpesareceiptnumber', 'mpesareceiptnumber'):
-                                        txid = val or txid
-                                    elif name.lower() in ('transactiondate',):
-                                        try:
-                                            s = str(val)
-                                            if len(s) >= 14:
-                                                ttime = datetime.strptime(s[:14], '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
-                                        except Exception:
-                                            pass
-                            # Fallbacks
-                            if not txid:
-                                txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or ''
-                    except Exception:
-                        # not the expected structure, fallthrough to other handlers
-                        pass
+                                if items and isinstance(items, list):
+                                    for it in items:
+                                        name = it.get('Name') or it.get('name')
+                                        val = it.get('Value')
+                                        if not name:
+                                            continue
+                                        if name.lower() == 'amount':
+                                            amount = str(val)
+                                        elif name.lower() in ('phonenumber', 'phone'):
+                                            phone = str(val)
+                                        elif name.lower() in ('mpesareceiptnumber',):
+                                            txid = val or txid
+                                        elif name.lower() in ('transactiondate',):
+                                            try:
+                                                s = str(val)
+                                                if len(s) >= 14:
+                                                    ttime = datetime.strptime(s[:14], '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+                                            except Exception:
+                                                pass
+                        except Exception:
+                            pass
 
-                    # Generic flat structure fallback
-                    if not amount:
-                        amount = d.get('amount') or d.get('Amount') or amount
-                    if not phone:
-                        phone = d.get('phone') or d.get('PhoneNumber') or phone
-                    if not txid:
-                        txid = d.get('txid') or d.get('transaction_id') or txid
+                    # Add currency symbol if amount is present
+                    if amount and not amount.startswith('KES'):
+                        amount = f"KES {amount}"
+
+                    # Mask phone number for privacy
+                    if phone and len(phone) > 4:
+                        masked_digits = '*' * (len(phone) - 4)
+                        phone = masked_digits + phone[-4:] 
 
                     # Add to transactions table
                     tx_page = self.pages.get('transactions')
@@ -1017,8 +1040,26 @@ class MpesaManager(tk.Tk):
                     def show_popup():
                         try:
                             title = 'Payment Notification'
-                            body = f"Amount: {amount}\nPhone: {phone}\nTX: {txid}\nStatus: {status}"
-                            messagebox.showinfo(title, body)
+                            body = []
+                            
+                            if callback_type == 'c2b_confirmation':
+                                body.extend([
+                                    f"Transaction Type: {d.get('TransactionType', 'C2B')}",
+                                    f"Amount: {amount}",
+                                    f"Reference: {d.get('BillRefNumber', '')}",
+                                    f"Phone: {phone}",
+                                    f"Transaction ID: {txid}",
+                                    f"Name: {d.get('FirstName', '')} {d.get('LastName', '')}"
+                                ])
+                            else:
+                                body.extend([
+                                    f"Amount: {amount}",
+                                    f"Phone: {phone}",
+                                    f"Transaction ID: {txid}",
+                                    f"Status: {status}"
+                                ])
+                            
+                            messagebox.showinfo(title, '\n'.join(filter(None, body)))
                         except Exception:
                             pass
 

@@ -544,14 +544,15 @@ class Settings(Card):
                 data = resp.json()
 
                 def on_success():
-                            consumer_key = CONSUMER_KEY
-                            consumer_secret = CONSUMER_SECRET
-                            if not consumer_key or not consumer_secret:
-                                raise RuntimeError('Missing CONSUMER_KEY or CONSUMER_SECRET in config/.env')
-            except Exception as e:
-                def on_error():
                     self.register_btn.config(state="normal", text="Register URLs")
-                    messagebox.showerror('Registration Error', str(e))
+                    messagebox.showinfo('Success', 'URLs registered successfully')
+                self.after(0, on_success)
+
+            except Exception as e:
+                error_message = str(e)  # Capture error message
+                def on_error(message=error_message):  # Pass message as default argument
+                    self.register_btn.config(state="normal", text="Register URLs")
+                    messagebox.showerror('Registration Error', message)
                 self.after(0, on_error)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -730,9 +731,10 @@ class LoginPage(Card):
                 self.manager.after(0, on_success)
 
             except Exception as e:
-                def on_err():
+                error_message = str(e)  # Capture error message
+                def on_err(message=error_message):  # Pass message as default argument
                     self.connect_btn.config(state='normal', text='Connect')
-                    messagebox.showerror('Connection Error', str(e))
+                    messagebox.showerror('Connection Error', message)
                 self.manager.after(0, on_err)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -894,9 +896,15 @@ class MpesaManager(tk.Tk):
         except Exception:
             pass
 
-        # Use websocket transport explicitly (more reliable for desktop clients)
-        # Enable logging for easier debugging of connection issues
-        self._sio = socketio.Client(reconnection=True, logger=True, engineio_logger=True)
+        # Configure Socket.IO client with reliable settings for desktop clients
+        self._sio = socketio.Client(
+            reconnection=True,
+            reconnection_attempts=5,
+            reconnection_delay=1,
+            reconnection_delay_max=5,
+            logger=True,
+            engineio_logger=True
+        )
 
         @self._sio.event
         def connect():
@@ -1019,11 +1027,13 @@ class MpesaManager(tk.Tk):
                     # For other messages, show raw payload
                     self.after(0, lambda: messagebox.showinfo('Notification', str(msg)))
             except Exception as e:
-                err = str(e)
-                try:
-                    self.after(0, lambda err=err: messagebox.showerror('Notification Error', err))
-                except Exception:
-                    pass
+                error_message = str(e)  # Capture error message
+                def show_error(message=error_message):  # Pass message as default argument
+                    try:
+                        messagebox.showerror('Notification Error', message)
+                    except Exception:
+                        pass
+                self.after(0, show_error)
 
         # Build connect URL (socketio client will add /socket.io if needed)
         connect_params = {}
@@ -1039,19 +1049,24 @@ class MpesaManager(tk.Tk):
                 url = ws_url
                 if qs:
                     url = f"{ws_url}?{qs}"
-                # Prefer websocket transport for desktop clients (more stable than polling)
-                try:
-                    self._sio.connect(url, transports=['websocket'], wait=True)
-                except TypeError:
-                    # Older python-socketio versions may not accept transports arg on connect; fallback
-                    self._sio.connect(url, wait=True)
+                    
+                # Connect with explicit websocket transport
+                self._sio.connect(
+                    url,
+                    namespaces=['/'],  # Connect to default namespace
+                    wait=True,
+                    wait_timeout=10,
+                    transports=('websocket',)  # Specify transports during connect
+                )
                 self._sio.wait()
             except Exception as e:
-                err = str(e)
-                try:
-                    self.after(0, lambda err=err: messagebox.showerror('Connection Error', err))
-                except Exception:
-                    pass
+                error_message = str(e)  # Capture error message
+                def show_error(message=error_message):  # Pass message as default argument
+                    try:
+                        messagebox.showerror('Connection Error', message)
+                    except Exception:
+                        pass
+                self.after(0, show_error)
 
         self._sio_thread = threading.Thread(target=run_client, daemon=True)
         self._sio_thread.start()

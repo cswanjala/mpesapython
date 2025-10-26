@@ -29,7 +29,17 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev')
-socketio = SocketIO(app, cors_allowed_origins='*', logger=True, engineio_logger=True)
+# Configure Socket.IO with WebSocket support and CORS
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins='*',
+    logger=True, 
+    engineio_logger=True,
+    async_mode='threading',  # Use threading mode for better stability
+    ping_timeout=60,  # Increase timeouts for better connection stability
+    ping_interval=25,
+    always_connect=True,  # Allow connections even if no auth
+)
 
 # Serializer for simple token generation (do NOT use as a full auth solution in prod)
 serializer = URLSafeSerializer(app.config['SECRET_KEY'])
@@ -85,8 +95,9 @@ def stk_callback():
 
 @app.route('/c2b-callback', methods=['POST'])
 def c2b_callback():
+    """Handle C2B confirmation callback."""
     data = request.get_json(force=True)
-    merchant = data.get('merchant_id') or data.get('BusinessShortCode') or data.get('ShortCode')
+    merchant = data.get('BusinessShortCode')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
@@ -94,19 +105,52 @@ def c2b_callback():
     except Exception:
         payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'c2b', payload_text, datetime.utcnow().isoformat()))
+              (merchant, 'c2b_confirmation', payload_text, datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
 
     try:
-        print(f"[{datetime.now().isoformat()}] Broadcasting C2B notification to all merchants")
+        print(f"[{datetime.now().isoformat()}] Broadcasting C2B confirmation to all merchants")
         socketio.emit('notification', {
-            'type': 'transaction', 
+            'type': 'c2b_confirmation', 
             'data': data
-        })  # No room/to parameter means broadcast to all
+        })
     except Exception as e:
         print(f"Error emitting notification: {e}")
-    return jsonify({'status': 'ok'})
+    return jsonify({'ResultCode': '0', 'ResultDesc': 'Success'})
+
+@app.route('/c2b-validation', methods=['POST'])
+def c2b_validation():
+    """Handle C2B validation callback.
+    This endpoint validates incoming C2B transactions before they are processed.
+    """
+    data = request.get_json(force=True)
+    merchant = data.get('BusinessShortCode')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        payload_text = json.dumps(data)
+    except Exception:
+        payload_text = str(data)
+    c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
+              (merchant, 'c2b_validation', payload_text, datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+
+    try:
+        print(f"[{datetime.now().isoformat()}] Broadcasting C2B validation to all merchants")
+        socketio.emit('notification', {
+            'type': 'c2b_validation', 
+            'data': data
+        })
+    except Exception as e:
+        print(f"Error emitting notification: {e}")
+    
+    # Accept all transactions (customize validation logic as needed)
+    return jsonify({
+        'ResultCode': '0',
+        'ResultDesc': 'Accepted'
+    })
 
 
 @app.route('/api/callbacks', methods=['GET'])

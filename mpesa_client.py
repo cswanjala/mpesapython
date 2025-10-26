@@ -39,6 +39,44 @@ def generate_password(shortcode: str, passkey: str, timestamp: str) -> str:
     return base64.b64encode(data_to_encode.encode('utf-8')).decode('utf-8')
 
 
+def c2b_register_url(shortcode: str, response_type: str,
+                      confirmation_url: str, validation_url: str,
+                      consumer_key: Optional[str] = None,
+                      consumer_secret: Optional[str] = None) -> dict:
+    """Register C2B URLs with Safaricom.
+    
+    Args:
+        shortcode: Your C2B shortcode
+        response_type: Response type (Completed/Cancelled)
+        confirmation_url: URL to receive transaction confirmations
+        validation_url: URL to validate transactions
+    """
+    consumer_key = consumer_key or CONSUMER_KEY
+    consumer_secret = consumer_secret or CONSUMER_SECRET
+    
+    if not all([consumer_key, consumer_secret, shortcode]):
+        raise RuntimeError('Missing one or more required credentials')
+        
+    access_token = get_access_token(consumer_key, consumer_secret)
+    
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    
+    payload = {
+        'ShortCode': shortcode,
+        'ResponseType': response_type,
+        'ConfirmationURL': confirmation_url,
+        'ValidationURL': validation_url
+    }
+    print(payload)
+    
+    url = 'https://sandbox.safaricom.co.ke/mpesa/c2b/v2/registerurl'
+    resp = requests.post(url, json=payload, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
 def lipa_na_mpesa_online(phone_number: str, amount: int,
                          account_reference: str = 'Payment',
                          transaction_desc: str = 'Payment',

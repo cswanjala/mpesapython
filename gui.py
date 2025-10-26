@@ -1103,15 +1103,15 @@ class MpesaManager(tk.Tk):
                                 btn = tk.Button(frm, text='Dismiss', command=top.destroy)
                                 btn.pack(pady=(8,0))
 
-                                # Position near bottom-right of the screen
+                                # Position at the center of the screen
                                 try:
                                     top.update_idletasks()
                                     w = top.winfo_reqwidth()
                                     h = top.winfo_reqheight()
                                     sw = top.winfo_screenwidth()
                                     sh = top.winfo_screenheight()
-                                    x = sw - w - 40
-                                    y = sh - h - 80
+                                    x = (sw - w) // 2
+                                    y = (sh - h) // 2
                                     top.geometry(f"{w}x{h}+{x}+{y}")
                                 except Exception:
                                     pass

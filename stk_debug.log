@@ -222,3 +222,105 @@ STK RESPONSE TEXT:
             "CustomerMessage":"Success. Request accepted for processing"
         }
         
+
+[2025-10-25T14:24:20.085060] Send STK clicked - phone=254796247784 amount=1 merchant=None
+
+--- STK PUSH RUN 2025-10-25T14:24:23.145395 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer wusrtx1KD3zD2MvrhzerajoTGstW', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTcyNDIx", "Timestamp": "20251025172421", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1f5d-424c-bb1f-e6a14457d7438686",
+            "CheckoutRequestID":"ws_CO_25102025172424589796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:25:22.266493] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:25:25.131205 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer Mfp3PUVoWG8E019F41UJzuIMqJbX', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTcyNTIz", "Timestamp": "20251025172523", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1d98-42f3-9cf7-c3703adb52e33031",
+            "CheckoutRequestID":"ws_CO_25102025172526611796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:32:45.587798] Send STK clicked - phone=254796247784 amount=1 merchant=None
+
+--- STK PUSH RUN 2025-10-25T14:32:49.432944 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer AKS69MTaTLxmxS7Yf1GOI807gp9b', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTczMjQ3", "Timestamp": "20251025173247", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1f5d-424c-bb1f-e6a14457d7438785",
+            "CheckoutRequestID":"ws_CO_25102025173250831796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:33:23.715054] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:33:27.834707 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer 8fD50GsIDqc7OtxnFUx2fJiZVnCb', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTczMzI1", "Timestamp": "20251025173325", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1f5d-424c-bb1f-e6a14457d7438791",
+            "CheckoutRequestID":"ws_CO_25102025173329308796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:33:45.321062] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:33:50.002722 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer GDlAkPP0h3oeeNvobaOyzQHGgj6k', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTczMzQ4", "Timestamp": "20251025173348", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"25a4-4cec-8aad-7f446ee0cced10860",
+            "CheckoutRequestID":"ws_CO_25102025173351483796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        
+
+[2025-10-25T14:34:27.734472] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-25T14:34:31.308260 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer ddxt6FgA8ktLFH7OJT0wrMEkuK53', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI1MTczNDI5", "Timestamp": "20251025173429", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://3b4d22b8307c.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"1d98-42f3-9cf7-c3703adb52e33147",
+            "CheckoutRequestID":"ws_CO_25102025173432709796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+        }
+        

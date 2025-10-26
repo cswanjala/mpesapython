@@ -817,22 +817,86 @@ class MpesaManager(tk.Tk):
         @self._sio.on('notification')
         def on_notification(msg):
             try:
+                # Expecting payload: {"type":"transaction","data": { ... M-Pesa body ... }}
                 if isinstance(msg, dict) and msg.get('type') == 'transaction':
-                    d = msg.get('data', {})
-                    ttime = d.get('time') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    amount = d.get('amount', '')
-                    phone = d.get('phone', '')
-                    status = d.get('status', '✅ Received')
-                    txid = d.get('txid', d.get('CheckoutRequestID') or d.get('transaction_id', ''))
+                    d = msg.get('data', {}) or {}
 
+                    # Default display values
+                    ttime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    amount = ''
+                    phone = ''
+                    status = 'Received'
+                    txid = ''
+
+                    # If this is an M-Pesa STK callback (nested Body -> stkCallback)
+                    try:
+                        stk = d.get('Body', {}).get('stkCallback') if isinstance(d, dict) else None
+                        if stk:
+                            # Result fields
+                            res_desc = stk.get('ResultDesc') or ''
+                            res_code = stk.get('ResultCode')
+                            status = f"{res_desc}" if res_desc else (f"Code {res_code}" if res_code is not None else status)
+
+                            # CheckoutRequestID or MerchantRequestID
+                            txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or stk.get('MerchantRequestID') or ''
+
+                            # CallbackMetadata contains Item list
+                            cb = stk.get('CallbackMetadata') or stk.get('Callback') or {}
+                            items = cb.get('Item') if isinstance(cb, dict) else None
+                            if not items and isinstance(cb, list):
+                                items = cb
+
+                            if items and isinstance(items, list):
+                                for it in items:
+                                    name = it.get('Name') or it.get('name')
+                                    val = it.get('Value')
+                                    if not name:
+                                        continue
+                                    if name.lower() == 'amount':
+                                        amount = str(val)
+                                    elif name.lower() in ('phonenumber', 'phone'):
+                                        phone = str(val)
+                                    elif name.lower() in ('mpesareceiptnumber', 'mpesareceiptnumber'):
+                                        txid = val or txid
+                                    elif name.lower() in ('transactiondate',):
+                                        try:
+                                            s = str(val)
+                                            if len(s) >= 14:
+                                                ttime = datetime.strptime(s[:14], '%Y%m%d%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+                                        except Exception:
+                                            pass
+                            # Fallbacks
+                            if not txid:
+                                txid = stk.get('MpesaReceiptNumber') or stk.get('CheckoutRequestID') or ''
+                    except Exception:
+                        # not the expected structure, fallthrough to other handlers
+                        pass
+
+                    # Generic flat structure fallback
+                    if not amount:
+                        amount = d.get('amount') or d.get('Amount') or amount
+                    if not phone:
+                        phone = d.get('phone') or d.get('PhoneNumber') or phone
+                    if not txid:
+                        txid = d.get('txid') or d.get('transaction_id') or txid
+
+                    # Add to transactions table
                     tx_page = self.pages.get('transactions')
                     if tx_page:
                         tx_page.add_transaction(ttime, amount, phone, status, txid)
 
-                    # Non-blocking popup
-                    self.after(0, lambda: messagebox.showinfo('Payment Notification', f'Payment received {amount} from {phone} (TX: {txid})'))
+                    # Non-blocking popup with useful info
+                    def show_popup():
+                        try:
+                            title = 'Payment Notification'
+                            body = f"Amount: {amount}\nPhone: {phone}\nTX: {txid}\nStatus: {status}"
+                            messagebox.showinfo(title, body)
+                        except Exception:
+                            pass
+
+                    self.after(0, show_popup)
                 else:
-                    # For other messages, just show raw
+                    # For other messages, show raw payload
                     self.after(0, lambda: messagebox.showinfo('Notification', str(msg)))
             except Exception as e:
                 err = str(e)

@@ -11,6 +11,10 @@ from config import CONSUMER_KEY, CONSUMER_SECRET, SHORTCODE, PASSKEY, CALLBACK_U
 import mpesa_client
 import importlib
 import config
+try:
+    from plyer import notification as plyer_notification
+except Exception:
+    plyer_notification = None
 
 # Ensure .env loaded by config.py already
 
@@ -557,6 +561,8 @@ class Settings(Card):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    
+
     def save_credentials(self):
         """Persist entered credentials to .env and reload config at runtime."""
         # Disable to prevent double clicks
@@ -945,8 +951,18 @@ class MpesaManager(tk.Tk):
         @self._sio.on('notification')
         def on_notification(msg):
             try:
-                # Expecting payload: {"type":"transaction","data": { ... M-Pesa body ... }}
-                if isinstance(msg, dict) and msg.get('type') == 'transaction':
+                # Normalize incoming payloads. Server may send a dict like
+                # {"type": "c2b_confirmation", "data": {...}} or a list
+                # like ["notification", { ... }]. Try to find the dict that
+                # contains the payload and continue.
+                if isinstance(msg, list):
+                    for it in msg:
+                        if isinstance(it, dict):
+                            msg = it
+                            break
+
+                # Proceed if we have a dict with a 'type' field
+                if isinstance(msg, dict) and 'type' in msg:
                     d = msg.get('data', {}) or {}
 
                     # Default display values
@@ -1040,10 +1056,10 @@ class MpesaManager(tk.Tk):
                     def show_popup():
                         try:
                             title = 'Payment Notification'
-                            body = []
-                            
+                            lines = []
+
                             if callback_type == 'c2b_confirmation':
-                                body.extend([
+                                lines.extend([
                                     f"Transaction Type: {d.get('TransactionType', 'C2B')}",
                                     f"Amount: {amount}",
                                     f"Reference: {d.get('BillRefNumber', '')}",
@@ -1052,14 +1068,70 @@ class MpesaManager(tk.Tk):
                                     f"Name: {d.get('FirstName', '')} {d.get('LastName', '')}"
                                 ])
                             else:
-                                body.extend([
+                                lines.extend([
                                     f"Amount: {amount}",
                                     f"Phone: {phone}",
                                     f"Transaction ID: {txid}",
                                     f"Status: {status}"
                                 ])
-                            
-                            messagebox.showinfo(title, '\n'.join(filter(None, body)))
+
+                            message = '\n'.join(filter(None, lines))
+
+                            # 1) Send OS-level notification (toast) where available
+                            try:
+                                if plyer_notification:
+                                    # plyer timeout is seconds on many platforms
+                                    plyer_notification.notify(title=title, message=message, app_name='M-Pesa Manager', timeout=8)
+                            except Exception:
+                                pass
+
+                            # 2) Create a small top-most in-app popup so it appears above other applications
+                            try:
+                                top = tk.Toplevel(self)
+                                top.title(title)
+                                top.configure(bg=SURFACE)
+                                # Make window topmost and focused
+                                try:
+                                    top.attributes('-topmost', True)
+                                except Exception:
+                                    pass
+                                # Content
+                                frm = tk.Frame(top, bg=SURFACE, padx=12, pady=12)
+                                frm.pack(fill='both', expand=True)
+                                lbl = tk.Label(frm, text=message, justify='left', bg=SURFACE, fg=TEXT_PRIMARY, wraplength=420)
+                                lbl.pack(fill='both', expand=True)
+                                btn = tk.Button(frm, text='Dismiss', command=top.destroy)
+                                btn.pack(pady=(8,0))
+
+                                # Position near bottom-right of the screen
+                                try:
+                                    top.update_idletasks()
+                                    w = top.winfo_reqwidth()
+                                    h = top.winfo_reqheight()
+                                    sw = top.winfo_screenwidth()
+                                    sh = top.winfo_screenheight()
+                                    x = sw - w - 40
+                                    y = sh - h - 80
+                                    top.geometry(f"{w}x{h}+{x}+{y}")
+                                except Exception:
+                                    pass
+
+                                try:
+                                    top.lift()
+                                    top.focus_force()
+                                except Exception:
+                                    pass
+
+                                # Auto-destroy after 8 seconds to avoid accumulating windows
+                                top.after(8000, lambda: top.destroy() if top.winfo_exists() else None)
+
+                            except Exception:
+                                # fallback to simple messagebox if Toplevel fails
+                                try:
+                                    messagebox.showinfo(title, message)
+                                except Exception:
+                                    pass
+
                         except Exception:
                             pass
 

@@ -1087,23 +1087,42 @@ class MpesaManager(tk.Tk):
 
                             # 2) Create a small top-most in-app popup so it appears above other applications
                             try:
+                                # Create an undecorated (no titlebar/buttons) Toplevel so only our Dismiss
+                                # button is presented. This removes minimize/maximize/close buttons.
                                 top = tk.Toplevel(self)
-                                top.title(title)
-                                top.configure(bg=SURFACE)
-                                # Make window topmost and focused
+                                # Hide while we configure to reduce flicker
+                                try:
+                                    top.withdraw()
+                                except Exception:
+                                    pass
+
+                                # Remove window decorations so there is no X/minimize/maximize
+                                try:
+                                    top.overrideredirect(True)
+                                except Exception:
+                                    pass
+
+                                # Keep on top
                                 try:
                                     top.attributes('-topmost', True)
                                 except Exception:
                                     pass
+
+                                # Try to present as a tool window on platforms that support it
+                                try:
+                                    top.wm_attributes('-toolwindow', True)
+                                except Exception:
+                                    pass
+
                                 # Content
-                                frm = tk.Frame(top, bg=SURFACE, padx=12, pady=12)
+                                frm = tk.Frame(top, bg=SURFACE, padx=12, pady=12, bd=1, relief='solid')
                                 frm.pack(fill='both', expand=True)
                                 lbl = tk.Label(frm, text=message, justify='left', bg=SURFACE, fg=TEXT_PRIMARY, wraplength=420)
                                 lbl.pack(fill='both', expand=True)
                                 btn = tk.Button(frm, text='Dismiss', command=top.destroy)
-                                btn.pack(pady=(8,0))
+                                btn.pack(pady=(8, 0))
 
-                                # Position at the center of the screen
+                                # Position centered on the screen
                                 try:
                                     top.update_idletasks()
                                     w = top.winfo_reqwidth()
@@ -1116,14 +1135,31 @@ class MpesaManager(tk.Tk):
                                 except Exception:
                                     pass
 
+                                # Show and focus
+                                try:
+                                    top.deiconify()
+                                except Exception:
+                                    pass
                                 try:
                                     top.lift()
                                     top.focus_force()
                                 except Exception:
                                     pass
 
-                                # Auto-destroy after 8 seconds to avoid accumulating windows
-                                top.after(8000, lambda: top.destroy() if top.winfo_exists() else None)
+                                # Windows-specific: reinforce topmost using SetWindowPos for better reliability
+                                try:
+                                    import sys, ctypes
+                                    if sys.platform.startswith('win'):
+                                        hwnd = int(top.winfo_id())
+                                        SWP_NOSIZE = 0x0001
+                                        SWP_NOMOVE = 0x0002
+                                        HWND_TOPMOST = -1
+                                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                                except Exception:
+                                    pass
+
+                                # Note: we DO NOT auto-destroy the popup. It will remain until the user
+                                # clicks "Dismiss" as requested.
 
                             except Exception:
                                 # fallback to simple messagebox if Toplevel fails

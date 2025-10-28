@@ -26,6 +26,6 @@ def register_c2b_urls(confirmation_url, validation_url):
 if __name__ == '__main__':
     # Example usage
     confirmation = 'https://3b4d22b8307c.ngrok-free.app/c2b-callback'  # Update with your URL
-    validation = 'https://3b4d22b8307c.ngrok-free.app/c2b-validation'  # Update with your URL
+    validation = 'https://3b4d22b8307c.ngrok-free.app/c2b-validation' # Update with your URL
     result = register_c2b_urls(confirmation, validation)
     print(result)

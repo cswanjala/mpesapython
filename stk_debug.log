@@ -10,7 +10,7 @@ AUTH RESPONSE TEXT:
 {
             "access_token": "6mlTiPlvqOKsvbdKRMGUEXGIJvhP",
             "expires_in": "3599"
-        }
+}
         
 STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
 STK REQ HEADERS: {'Authorization': 'Bearer 6mlTiPlvqOKsvbdKRMGUEXGIJvhP', 'Content-Type': 'application/json'}
@@ -20,7 +20,7 @@ STK RESPONSE TEXT:
                     "requestId":"5b65-43dd-b2ba-5fea49a390e837657",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-23T05:57:31.526572] Send STK clicked - phone=254796247784 amount=1
@@ -34,7 +34,7 @@ AUTH RESPONSE TEXT:
 {
             "access_token": "BQQmipEJGzaPEWP3iiiA90nVOua8",
             "expires_in": "3599"
-        }
+}
         
 
 STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
@@ -47,7 +47,7 @@ STK RESPONSE TEXT:
                     "requestId":"3f3d-4d87-9d36-400f81c5e10e7282",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T12:59:53.133082] Send STK clicked - phone=254796247784 amount=1
@@ -61,7 +61,7 @@ AUTH RESPONSE TEXT:
 {
             "access_token": "aAKOCfDFs2UBgBxbt3rKl9AZoIRl",
             "expires_in": "3599"
-        }
+}
         
 
 STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
@@ -74,7 +74,7 @@ STK RESPONSE TEXT:
                     "requestId":"1f5d-424c-bb1f-e6a14457d7437672",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T13:08:51.510782] Send STK clicked - phone=254796247784 amount=1
@@ -88,7 +88,7 @@ AUTH RESPONSE TEXT:
 {
             "access_token": "2fuT2wAcYfBaWkc37r1XgGAlR9qG",
             "expires_in": "3599"
-        }
+}
         
 
 STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
@@ -101,7 +101,7 @@ STK RESPONSE TEXT:
                     "requestId":"1d98-42f3-9cf7-c3703adb52e32023",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T13:21:51.090261] Send STK clicked - phone=254796247784 amount=1
@@ -112,7 +112,7 @@ TOKEN RESPONSE TEXT:
 {
             "access_token": "rwsbu72G0RdlpF9hazi9ZcsAFcTi",
             "expires_in": "3599"
-        }
+}
         
 STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
 STK REQ HEADERS: {'Authorization': 'Bearer rwsbu72G0RdlpF9hazi9ZcsAFcTi', 'Content-Type': 'application/json'}
@@ -122,7 +122,7 @@ STK RESPONSE TEXT:
                     "requestId":"25a4-4cec-8aad-7f446ee0cced9917",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T13:52:45.413064] Send STK clicked - phone=254796247784 amount=1
@@ -137,7 +137,7 @@ STK RESPONSE TEXT:
                     "requestId":"1f5d-424c-bb1f-e6a14457d7438292",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T13:55:02.777961] Send STK clicked - phone=254796247784 amount=1
@@ -152,7 +152,7 @@ STK RESPONSE TEXT:
                     "requestId":"1d98-42f3-9cf7-c3703adb52e32617",
                     "errorCode": "500.001.1001",
                     "errorMessage": "Merchant does not exist"
-                }
+}
             
 
 [2025-10-25T13:56:39.935992] Send STK clicked - phone=254796247784 amount=1
@@ -169,7 +169,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T13:59:49.894411] Send STK clicked - phone=254796247784 amount=1
@@ -186,7 +186,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:09:29.277518] Send STK clicked - phone=254796247784 amount=1 merchant=collins
@@ -203,7 +203,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:15:43.073960] Send STK clicked - phone=254796247784 amount=1 merchant=collins
@@ -220,7 +220,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:24:20.085060] Send STK clicked - phone=254796247784 amount=1 merchant=None
@@ -237,7 +237,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:25:22.266493] Send STK clicked - phone=254796247784 amount=1 merchant=collins
@@ -254,7 +254,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:32:45.587798] Send STK clicked - phone=254796247784 amount=1 merchant=None
@@ -271,7 +271,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-25T14:33:23.715054] Send STK clicked - phone=254796247784 amount=1 merchant=collins
@@ -322,7 +322,7 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
         
 
 [2025-10-26T05:57:15.294951] Send STK clicked - phone=254796247784 amount=1 merchant=collins
@@ -339,5 +339,71 @@ STK RESPONSE TEXT:
             "ResponseCode": "0",
             "ResponseDescription":"Success. Request accepted for processing",
             "CustomerMessage":"Success. Request accepted for processing"
-        }
+}
+        
+
+[2025-10-27T16:23:50.782247] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-27T16:23:58.258890 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer yhFwINhUe9jpYIH4hCqF1C7kGFYw', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "600977", "Password": "NjAwOTc3YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI3MTkyMzU0", "Timestamp": "20251027192354", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "600977", "PhoneNumber": "254796247784", "CallBackURL": "https://d151db5697a0.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "600977"}}
+STK STATUS: 500
+STK RESPONSE TEXT:
+{
+                    "requestId":"7c3d-4f82-8024-bb5eed41cb1113573",
+                    "errorCode": "500.001.1001",
+                    "errorMessage": "Merchant does not exist"
+}
+            
+
+[2025-10-27T16:24:46.960997] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-27T16:24:55.027268 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer jqACPDUAnuxLGNscJfAle0g0HBrc', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "600977", "Password": "NjAwOTc3YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI3MTkyNDUw", "Timestamp": "20251027192450", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "600977", "PhoneNumber": "254796247784", "CallBackURL": "https://d151db5697a0.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "600977"}}
+STK STATUS: 500
+STK RESPONSE TEXT:
+{
+                    "requestId":"5e53-400b-9ddd-b9ecef1bbaf733",
+                    "errorCode": "500.001.1001",
+                    "errorMessage": "Merchant does not exist"
+}
+            
+
+[2025-10-27T16:26:25.119862] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+[2025-10-27T16:26:52.920449] Send STK clicked - phone=254796247784 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-27T16:27:12.794399 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer S5NRB2EURWCqdHhn41UAmDR7U28Y', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI3MTkyNzA2", "Timestamp": "20251027192706", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254796247784", "PartyB": "174379", "PhoneNumber": "254796247784", "CallBackURL": "https://d151db5697a0.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"5e53-400b-9ddd-b9ecef1bbaf745",
+            "CheckoutRequestID":"ws_CO_27102025192711518796247784",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+}
+        
+
+[2025-10-27T16:27:50.368375] Send STK clicked - phone=254725152508 amount=1 merchant=collins
+
+--- STK PUSH RUN 2025-10-27T16:27:54.419569 ---
+STK REQUEST URL: https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+STK REQ HEADERS: {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive', 'Authorization': 'Bearer v5ZVlrcffDfCI5yV8RQ4rgYXdYG7', 'Content-Type': 'application/json', 'Content-Length': '491'}
+STK REQ BODY: {"BusinessShortCode": "174379", "Password": "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjUxMDI3MTkyNzUy", "Timestamp": "20251027192752", "TransactionType": "CustomerPayBillOnline", "Amount": 1, "PartyA": "254725152508", "PartyB": "174379", "PhoneNumber": "254725152508", "CallBackURL": "https://d151db5697a0.ngrok-free.app/stk-callback", "AccountReference": "Payment", "TransactionDesc": "Payment", "Metadata": {"merchant_id": "174379"}}
+STK STATUS: 200
+STK RESPONSE TEXT:
+{
+            "MerchantRequestID":"7c3d-4f82-8024-bb5eed41cb1113622",
+            "CheckoutRequestID":"ws_CO_27102025192753612725152508",
+            "ResponseCode": "0",
+            "ResponseDescription":"Success. Request accepted for processing",
+            "CustomerMessage":"Success. Request accepted for processing"
+}
         

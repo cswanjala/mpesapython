@@ -25,164 +25,235 @@ except Exception:
     _HAS_WINOTIFY = False
 
 
-class GlobalOverlayWindow(QWidget):
-    """A truly global overlay that appears on top of ALL applications including fullscreen games"""
+class MultiDesktopNotificationWindow(QWidget):
+    """A notification that appears on ALL virtual desktops and ALL screens"""
     
     def __init__(self, title: str, message: str, parent=None):
         super().__init__(parent)
         
-        # CRITICAL: Set window flags for true global overlay
+        # ULTRA-FORCEFUL window flags for multi-desktop support
         self.setWindowFlags(
             Qt.WindowType.WindowStaysOnTopHint |          # Always on top
             Qt.WindowType.FramelessWindowHint |           # No title bar
             Qt.WindowType.Tool |                          # No taskbar entry
-            Qt.WindowType.SubWindow |                     # Make it a sub-window
-            Qt.WindowType.WindowDoesNotAcceptFocus |      # Don't take focus
-            Qt.WindowType.X11BypassWindowManagerHint      # Bypass window manager (Linux)
+            Qt.WindowType.X11BypassWindowManagerHint |    # Bypass window manager (Linux)
+            Qt.WindowType.WindowDoesNotAcceptFocus |      # Don't steal focus
+            Qt.WindowType.MSWindowsFixedSizeDialogHint    # Better multi-desktop support on Windows
         )
-        # Set window to be always on top
-        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
         
-        # Make it a transparent overlay container
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        # Make it truly top-most and visible on all virtual desktops
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
-        # Cover the entire screen but transparent
-        screen = QGuiApplication.primaryScreen()
-        # use full screen geometry so overlay covers fullscreen apps
-        geom = screen.geometry()
-        self.setGeometry(geom)
-
-        # Create the actual notification card and keep reference
-        self.notification_card = NotificationCard(title, message, self)
-        self.notification_card.dismissed.connect(self.close)
-
-        # Position card at center of the screen
-        self.position_notification()
-
+        # Create notification cards for ALL screens
+        self.notification_cards = []
+        self.create_notifications_for_all_screens(title, message)
+        
         # Auto-close timer
         self.auto_close_timer = QTimer()
         self.auto_close_timer.setSingleShot(True)
         self.auto_close_timer.timeout.connect(self.animate_out)
-        self.auto_close_timer.start(8000)  # 8 seconds
+        self.auto_close_timer.start(15000)  # 15 seconds
         
-    def position_notification(self):
-        """Position the notification card at bottom-right of screen"""
-        # Center the notification card on the overlay (works across multi-monitor)
-        screen_geo = QGuiApplication.primaryScreen().geometry()
-        card_width = self.notification_card.width()
-        card_height = self.notification_card.height()
+        # Force to top immediately on all desktops
+        QTimer.singleShot(100, self.force_to_all_desktops)
+        
+    def create_notifications_for_all_screens(self, title: str, message: str):
+        """Create notification cards for EVERY screen and virtual desktop"""
+        screens = QGuiApplication.screens()
+        print(f"[MultiDesktop] Creating notifications for {len(screens)} screens")
+        
+        for screen in screens:
+            # Create a notification card for each screen
+            card = PaymentNotificationCard(title, message, self)
+            card.dismissed.connect(self.on_card_dismissed)
+            self.notification_cards.append(card)
+            
+            # Position card at center of this specific screen
+            self.center_notification_on_screen(card, screen)
+            
+    def center_notification_on_screen(self, card, screen):
+        """Position the notification card at absolute center of a specific screen"""
+        screen_geo = screen.geometry()
+        card_width = card.width()
+        card_height = card.height()
 
         x = screen_geo.x() + (screen_geo.width() - card_width) // 2
         y = screen_geo.y() + (screen_geo.height() - card_height) // 2
 
-        self.notification_card.move(x, y)
+        card.move(x, y)
+        card.show()
         
     def showEvent(self, event):
         """Animate in when shown"""
         super().showEvent(event)
-        # Ensure overlay is set top-most on the platform
+        self.force_to_all_desktops()
+        for card in self.notification_cards:
+            card.animate_in()
+        
+    def force_to_all_desktops(self):
+        """Force the window to be visible on ALL virtual desktops using platform-specific methods"""
         try:
-            self._set_topmost()
-        except Exception:
-            pass
-
-        # Animate the card in
-        self.notification_card.animate_in()
+            if platform.system() == 'Windows':
+                self._force_windows_all_desktops()
+            elif platform.system() == 'Linux':
+                self._force_linux_all_desktops()
+            else:  # macOS and others
+                self._force_generic_all_desktops()
+                
+            # Force all cards to be visible
+            for card in self.notification_cards:
+                card.raise_()
+                card.activateWindow()
+                card.show()
+                
+        except Exception as e:
+            print(f"[MultiDesktop] Error forcing to all desktops: {e}")
+            
+    def _force_windows_all_desktops(self):
+        """Windows-specific: Make window visible on all virtual desktops"""
+        try:
+            # Try to use Windows API to show on all virtual desktops
+            HWND_TOPMOST = -1
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_SHOWWINDOW = 0x0040
+            flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+            
+            for card in self.notification_cards:
+                hwnd = int(card.winId())
+                # Set as topmost
+                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+                # Additional forceful methods
+                ctypes.windll.user32.BringWindowToTop(hwnd)
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                
+                # Try to make it visible on all virtual desktops (Windows 10+)
+                try:
+                    # This is the key for virtual desktop support
+                    GWL_EXSTYLE = -20
+                    WS_EX_TOOLWINDOW = 0x00000080
+                    WS_EX_NOACTIVATE = 0x08000000
+                    
+                    # Get current style
+                    current_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                    # Add toolwindow and noactivate flags for better multi-desktop behavior
+                    new_style = current_style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+                    ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+                    
+                except Exception as e:
+                    print(f"[Windows Virtual Desktop] Fallback: {e}")
+                    
+        except Exception as e:
+            print(f"[Windows All Desktops Error] {e}")
+            
+    def _force_linux_all_desktops(self):
+        """Linux-specific: Make window visible on all workspaces"""
+        try:
+            for card in self.notification_cards:
+                hwnd = int(card.winId())
+                # Use xdotool to set on all workspaces
+                import subprocess
+                wid = hex(hwnd)
+                # Try to set sticky flag (visible on all workspaces)
+                subprocess.run(['xdotool', 'set_window', '--classname', 'MPesaNotification', wid], timeout=2)
+                subprocess.run(['wmctrl', '-i', '-r', wid, '-b', 'add,sticky'], timeout=2)
+        except:
+            # Fallback - just ensure visibility
+            for card in self.notification_cards:
+                card.raise_()
+                card.show()
+            
+    def _force_generic_all_desktops(self):
+        """Generic method for other platforms"""
+        for card in self.notification_cards:
+            card.raise_()
+            card.activateWindow()
+            card.show()
+            
+    def on_card_dismissed(self):
+        """When any card is dismissed, dismiss all"""
+        self.animate_out()
         
     def animate_out(self):
-        """Animate out and close"""
-        self.notification_card.animate_out()
-        QTimer.singleShot(300, self.close)  # Close after animation
-
-    def _set_topmost(self):
-        """Platform-specific attempts to ensure the overlay stays above fullscreen apps.
-
-        On Windows we call SetWindowPos with HWND_TOPMOST. On other platforms we rely on
-        Qt window flags (WindowStaysOnTopHint).
-        """
-        if platform.system() == 'Windows':
-            try:
-                # HWND_TOPMOST = -1
-                HWND_TOPMOST = -1
-                SWP_NOMOVE = 0x0002
-                SWP_NOSIZE = 0x0001
-                SWP_SHOWWINDOW = 0x0040
-                flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
-                hwnd = int(self.winId())
-                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
-            except Exception:
-                pass
-        else:
-            # For other platforms rely on Qt's Always on Top hint
-            try:
-                self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-                self.raise_()
-                self.activateWindow()
-            except Exception:
-                pass
+        """Animate out and close all cards"""
+        for card in self.notification_cards:
+            card.animate_out()
+        QTimer.singleShot(500, self.close_all)
+        
+    def close_all(self):
+        """Close all notification cards"""
+        for card in self.notification_cards:
+            card.close()
+        self.close()
 
 
-class NotificationCard(QWidget):
-    """The actual notification card that appears within the global overlay"""
+class PaymentNotificationCard(QWidget):
+    """A large, prominent payment notification card that demands attention"""
     
     dismissed = pyqtSignal()
     
     def __init__(self, title: str, message: str, parent=None):
         super().__init__(parent)
         
-        # Make the card itself a proper window
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
-        self.setFixedSize(400, 200)
+        # Make the card large and prominent with multi-desktop support
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint | 
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.Tool |
+            Qt.WindowType.MSWindowsFixedSizeDialogHint  # Better for virtual desktops
+        )
+        self.setFixedSize(500, 350)
         
-        # Modern card styling
+        # Eye-catching styling
         self.setStyleSheet("""
-            NotificationCard {
+            PaymentNotificationCard {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 white, stop:1 #f8fafc);
-                border: 2px solid #2563eb;
-                border-radius: 12px;
+                    stop:0 #ffffff, stop:1 #f0f9ff);
+                border: 3px solid #059669;
+                border-radius: 16px;
                 padding: 0px;
             }
         """)
         
         layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(20)
         
-        # Header with icon and title
+        # Header with large icon and title
         header_layout = QHBoxLayout()
         
-        # Notification icon
-        icon_label = QLabel("💳")
-        icon_label.setStyleSheet("font-size: 24px;")
+        # Large payment icon
+        icon_label = QLabel("💰")
+        icon_label.setStyleSheet("font-size: 36px; margin-right: 15px;")
         header_layout.addWidget(icon_label)
         
-        # Title
+        # Main title
         title_label = QLabel(title)
         title_label.setStyleSheet("""
-            font-size: 18px;
-            font-weight: 700;
-            color: #1e293b;
+            font-size: 24px;
+            font-weight: 800;
+            color: #065f46;
             margin: 0px;
         """)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         # Close button
-        close_btn = QPushButton("×")
-        close_btn.setFixedSize(24, 24)
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(32, 32)
         close_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ef4444;
+                background-color: #dc2626;
                 color: white;
                 border: none;
-                border-radius: 12px;
-                font-size: 14px;
+                border-radius: 16px;
+                font-size: 16px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #dc2626;
+                background-color: #b91c1c;
             }
         """)
         close_btn.clicked.connect(self.on_dismiss)
@@ -191,21 +262,40 @@ class NotificationCard(QWidget):
         
         layout.addLayout(header_layout)
         
-        # Message content
+        # Payment message content
         message_label = QLabel(message)
         message_label.setStyleSheet("""
-            font-size: 14px;
-            color: #475569;
-            line-height: 1.4;
+            font-size: 18px;
+            color: #1f2937;
+            line-height: 1.6;
+            font-weight: 500;
         """)
         message_label.setWordWrap(True)
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(message_label)
         
+        # Payment amount highlight
+        amount = self._extract_amount(message)
+        if amount:
+            amount_label = QLabel(f"KES {amount}")
+            amount_label.setStyleSheet("""
+                font-size: 28px;
+                font-weight: 800;
+                color: #059669;
+                background-color: #d1fae5;
+                border: 2px solid #10b981;
+                border-radius: 10px;
+                padding: 10px;
+                margin: 10px 0px;
+            """)
+            amount_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(amount_label)
+        
         # Timestamp
-        timestamp = QLabel(datetime.now().strftime("%H:%M:%S"))
+        timestamp = QLabel(f"Received at {datetime.now().strftime('%H:%M:%S')}")
         timestamp.setStyleSheet("""
-            font-size: 12px;
-            color: #94a3b8;
+            font-size: 14px;
+            color: #6b7280;
             font-style: italic;
         """)
         layout.addWidget(timestamp)
@@ -213,14 +303,16 @@ class NotificationCard(QWidget):
         # Action buttons
         button_layout = QHBoxLayout()
         
-        view_btn = QPushButton("View Details")
+        view_btn = QPushButton("📋 View Transaction Details")
+        view_btn.setFixedHeight(44)
         view_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2563eb;
                 color: white;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 8px 16px;
+                font-size: 16px;
                 font-weight: 600;
             }
             QPushButton:hover {
@@ -231,17 +323,19 @@ class NotificationCard(QWidget):
         view_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         
         dismiss_btn = QPushButton("Dismiss")
+        dismiss_btn.setFixedHeight(44)
         dismiss_btn.setStyleSheet("""
             QPushButton {
-                background-color: #64748b;
+                background-color: #6b7280;
                 color: white;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 8px 16px;
+                font-size: 16px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #475569;
+                background-color: #4b5563;
             }
         """)
         dismiss_btn.clicked.connect(self.on_dismiss)
@@ -257,61 +351,111 @@ class NotificationCard(QWidget):
         # Setup animation
         self.setup_animation()
         
-    def setup_animation(self):
-        """Setup slide-in/slide-out animations"""
-        # Slide in from right animation
-        self.animation_in = QPropertyAnimation(self, b"geometry")
-        self.animation_in.setDuration(400)
-        self.animation_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # Play sound if available
+        self.play_notification_sound()
         
-        # Slide out to right animation
-        self.animation_out = QPropertyAnimation(self, b"geometry")
-        self.animation_out.setDuration(300)
-        self.animation_out.setEasingCurve(QEasingCurve.Type.InCubic)
+    def _extract_amount(self, message):
+        """Extract payment amount from message for highlighting"""
+        try:
+            import re
+            matches = re.findall(r'KES\s*([\d,]+)', message)
+            if matches:
+                return matches[0]
+            matches = re.findall(r'Amount:\s*KES?\s*([\d,]+)', message)
+            if matches:
+                return matches[0]
+        except:
+            pass
+        return None
+        
+    def play_notification_sound(self):
+        """Play a notification sound on ALL platforms"""
+        try:
+            if platform.system() == 'Windows':
+                import winsound
+                # Play a more attention-grabbing sound
+                winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
+                # Additional beep for extra attention
+                winsound.Beep(1000, 500)
+            elif platform.system() == 'Darwin':  # macOS
+                import os
+                os.system('afplay /System/Library/Sounds/Glass.aiff &')
+            elif platform.system() == 'Linux':
+                import os
+                os.system('paplay /usr/share/sounds/freedesktop/stereo/message.oga &')
+        except:
+            pass
+        
+    def setup_animation(self):
+        """Setup attention-grabbing animations"""
+        self.animation_in = QPropertyAnimation(self, b"geometry")
+        self.animation_in.setDuration(600)
+        self.animation_in.setEasingCurve(QEasingCurve.Type.OutBack)
+        
+        self.pulse_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.pulse_animation.setDuration(1000)
+        self.pulse_animation.setStartValue(1.0)
+        self.pulse_animation.setEndValue(0.95)
+        self.pulse_animation.setLoopCount(8)
         
     def animate_in(self):
-        """Animate sliding in from right"""
-        screen_geo = QGuiApplication.primaryScreen().availableGeometry()
+        """Animate with scale effect for attention"""
+        # Get the screen this card is on
+        screen = QGuiApplication.screenAt(self.pos())
+        if not screen:
+            screen = QGuiApplication.primaryScreen()
+            
+        screen_geo = screen.geometry()
+        center_x = screen_geo.x() + (screen_geo.width() - self.width()) // 2
+        center_y = screen_geo.y() + (screen_geo.height() - self.height()) // 2
+        
+        # Start from small size in center
         start_geo = QRect(
-            screen_geo.width(),  # Start off-screen to the right
-            self.y(),
-            self.width(),
-            self.height()
+            center_x + self.width() // 4,
+            center_y + self.height() // 4,
+            self.width() // 2,
+            self.height() // 2
         )
-        end_geo = QRect(
-            screen_geo.width() - self.width() - 20,  # End 20px from right edge
-            self.y(),
-            self.width(),
-            self.height()
-        )
+        
+        # End at full size
+        end_geo = QRect(center_x, center_y, self.width(), self.height())
         
         self.animation_in.setStartValue(start_geo)
         self.animation_in.setEndValue(end_geo)
         self.animation_in.start()
         
-    def animate_out(self):
-        """Animate sliding out to right"""
-        current_geo = self.geometry()
-        end_geo = QRect(
-            QGuiApplication.primaryScreen().availableGeometry().width(),
-            current_geo.y(),
-            current_geo.width(),
-            current_geo.height()
-        )
+        QTimer.singleShot(600, self.pulse_animation.start)
         
-        self.animation_out.setStartValue(current_geo)
-        self.animation_out.setEndValue(end_geo)
-        self.animation_out.start()
+    def animate_out(self):
+        """Animate scaling out"""
+        current_geo = self.geometry()
+        screen = QGuiApplication.screenAt(self.pos())
+        if not screen:
+            screen = QGuiApplication.primaryScreen()
+            
+        screen_geo = screen.geometry()
+        center_x = screen_geo.x() + screen_geo.width() // 2
+        center_y = screen_geo.y() + screen_geo.height() // 2
+        
+        end_geo = QRect(center_x, center_y, 0, 0)
+        
+        animation_out = QPropertyAnimation(self, b"geometry")
+        animation_out.setDuration(400)
+        animation_out.setEasingCurve(QEasingCurve.Type.InBack)
+        animation_out.setStartValue(current_geo)
+        animation_out.setEndValue(end_geo)
+        animation_out.start()
         
     def on_view_details(self):
-        """Bring main application to front when View Details is clicked"""
+        """Bring main application to front"""
         try:
-            # Find and activate the main window
             for widget in QApplication.topLevelWidgets():
                 if isinstance(widget, MainWindow):
+                    # Try to bring to current virtual desktop
                     widget.show()
                     widget.raise_()
                     widget.activateWindow()
+                    widget.switch_page('transactions')
                     break
         except Exception:
             pass
@@ -320,7 +464,7 @@ class NotificationCard(QWidget):
     def on_dismiss(self):
         """Dismiss the notification"""
         self.animate_out()
-        QTimer.singleShot(300, self.dismissed.emit)
+        QTimer.singleShot(400, self.dismissed.emit)
 
 
 class ModernButton(QPushButton):
@@ -1309,7 +1453,7 @@ class SettingsWidget(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        print("[GUI Debug] Initializing MainWindow")
+        print("[GUI Debug] Initializing MainWindow with Multi-Desktop Support")
         self.setWindowTitle('M-Pesa Manager - Professional Payment Gateway')
         self.resize(1200, 800)
         
@@ -1376,7 +1520,7 @@ class MainWindow(QMainWindow):
         print("[GUI Debug] MainWindow initialization complete")
         
     def _on_notification(self, msg):
-        """Handle incoming notifications by showing GLOBAL overlay"""
+        """Handle incoming notifications by showing MULTI-DESKTOP overlay"""
         try:
             print(f"[GUI Debug] _on_notification received message: {msg}")
             formatted = self._format_notification(msg)
@@ -1387,17 +1531,15 @@ class MainWindow(QMainWindow):
             # Add to transactions
             self.transactions.add_transaction(formatted)
             
-            # Show GLOBAL overlay that appears over everything
-            self.show_global_overlay("Payment Notification", formatted)
+            # Show MULTI-DESKTOP overlay that appears on ALL screens and virtual desktops
+            self.show_multi_desktop_notification("💰 PAYMENT RECEIVED", formatted)
             
-            print("[GUI Debug] Notification processed successfully")
+            print("[GUI Debug] Multi-desktop notification processed successfully")
             
         except Exception as e:
             print(f"[GUI Error] Error handling notification: {e}")
             import traceback
             print(traceback.format_exc())
-        
-        
 
     def switch_page(self, page_name):
         page_map = {
@@ -1428,10 +1570,9 @@ class MainWindow(QMainWindow):
         self.content_area.setCurrentWidget(self.dashboard)
         self.dashboard.set_context(merchant_id, shop_codes)
 
-        # Connect notifications - THIS IS THE KEY PART
+        # Connect notifications
         try:
             print("[GUI Debug] Setting up notification handler...")
-            # Connect to the correct signal method
             wsclient.signals.notification.connect(self._on_notification)
             print("[GUI Debug] Notification handler connected successfully")
         except Exception as e:
@@ -1445,65 +1586,46 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def _handle_notification(self, msg):
-        """Handle incoming notifications by showing GLOBAL overlay"""
+    def show_multi_desktop_notification(self, title: str, message: str):
+        """Show notification on ALL virtual desktops and ALL screens"""
         try:
-            formatted = self._format_notification(msg)
-            
-            # Add to dashboard history
-            self.dashboard.append_history(f"🔔 {formatted}")
-            
-            # Add to transactions
-            self.transactions.add_transaction(formatted)
-            
-            # Show GLOBAL overlay that appears over everything
-            self.show_global_overlay("Payment Notification", formatted)
-            
-        except Exception as e:
-            print(f"Error handling notification: {e}")
+            print(f"[MultiDesktop] Showing notification on ALL desktops - Title: {title}")
 
-    def show_global_overlay(self, title: str, message: str):
-        """Show a truly global overlay that appears over ALL applications"""
-        try:
-            print(f"[GUI Debug] Showing global overlay - Title: {title}, Message: {message}")
-
-            # On Windows prefer native toast (with sound) which integrates with Action Center
+            # Show Windows toast for sound (this appears in Action Center across desktops)
             if platform.system() == 'Windows' and _HAS_WINOTIFY:
                 try:
-                    toast = Notification(app_id="M-Pesa Manager",
-                                          title=title,
-                                          msg=message,
-                                          duration="short")
-                    # Use default system sound
+                    toast = Notification(
+                        app_id="M-Pesa Manager",
+                        title="💰 PAYMENT RECEIVED",
+                        msg=message.split('\n')[0] if '\n' in message else message,
+                        duration="long"
+                    )
                     toast.set_audio(audio.Default, loop=False)
                     toast.show()
-                    print("[GUI Debug] Windows toast notification shown")
-                    # Still create overlay as fallback/visual within app
+                    print("[MultiDesktop] Windows toast notification shown")
                 except Exception as e:
-                    print(f"[GUI Error] Failed to show Windows toast: {e}")
+                    print(f"[MultiDesktop] Failed to show Windows toast: {e}")
 
-            # Create and show the global overlay (fallback/in-app visual)
-            overlay = GlobalOverlayWindow(title, message)
+            # Create and show the MULTI-DESKTOP overlay
+            overlay = MultiDesktopNotificationWindow(title, message)
 
             # Store reference to prevent garbage collection
             self._current_overlay = overlay
 
-            # Show the overlay window
+            # Show the overlay window (it will handle multiple screens/desktops)
             overlay.show()
-            overlay.raise_()  # Ensure it's on top
-            overlay.activateWindow()  # Make it active
-
-            print("[GUI Debug] Global overlay displayed successfully")
+            
+            print(f"[MultiDesktop] Notification displayed on {len(overlay.notification_cards)} screens")
             
         except Exception as e:
-            print(f"[GUI Error] Failed to show global overlay: {e}")
+            print(f"[MultiDesktop] Failed to show multi-desktop notification: {e}")
             import traceback
             print(traceback.format_exc())
 
     def _format_notification(self, msg):
         """Format notification message for display"""
         try:
-            print(f"[GUI Debug] Formatting notification: {msg}")  # Debug logging
+            print(f"[GUI Debug] Formatting notification: {msg}")
             if isinstance(msg, dict):
                 d = msg.get('data', {}) or {}
                 t = msg.get('type', '')
@@ -1513,8 +1635,8 @@ class MainWindow(QMainWindow):
                     amt = d.get('TransAmount') or d.get('Amount') or ''
                     phone = d.get('MSISDN') or d.get('Phone') or ''
                     name = (d.get('FirstName') or '') + ' ' + (d.get('LastName') or '')
-                    formatted = f"💰 New Payment Received!\nAmount: KES {amt}\nFrom: {phone}\nReference: {txid}\nCustomer: {name.strip()}"
-                    print(f"[GUI Debug] Formatted notification: {formatted}")  # Debug logging
+                    formatted = f"NEW PAYMENT CONFIRMED!\n\n💵 Amount: KES {amt}\n📱 From: {phone}\n👤 Customer: {name.strip()}\n🔢 Reference: {txid}"
+                    print(f"[GUI Debug] Formatted notification: {formatted}")
                     return formatted
 
                 if 'stkCallback' in str(d) or 'stkCallback' in str(msg):
@@ -1543,15 +1665,15 @@ class MainWindow(QMainWindow):
                                     phone = str(val)
                         
                         if res_code == 0:
-                            return f"✅ Payment Successful!\nAmount: KES {amt}\nPhone: {phone}\nReceipt: {txid}"
+                            return f"✅ PAYMENT SUCCESSFUL!\n\n💵 Amount: KES {amt}\n📱 Phone: {phone}\n🧾 Receipt: {txid}"
                         else:
-                            return f"❌ Payment Failed\nReason: {res_desc}\nPhone: {phone}"
+                            return f"❌ PAYMENT FAILED\n\n📱 Phone: {phone}\n⚠️ Reason: {res_desc}"
 
             # Fallback for unknown format
-            return f"New Notification:\n{str(msg)}"
+            return f"NEW TRANSACTION\n\n{str(msg)}"
             
         except Exception:
-            return f"New Notification:\n{str(msg)}"
+            return f"NEW TRANSACTION\n\n{str(msg)}"
 
 
 def main():
@@ -1561,7 +1683,7 @@ def main():
     font = QFont("Segoe UI", 10)
     app.setFont(font)
     
-    print("[GUI Debug] Starting application...")
+    print("[GUI Debug] Starting application with Multi-Desktop Support...")
     mw = MainWindow()
     print("[GUI Debug] Main window created")
     

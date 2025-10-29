@@ -36,6 +36,15 @@ SHADOW = "#e2e8f0"
 FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
 
+# Shops mapping (display name -> BusinessShortCode / PartyB)
+# You can extend this list later or load from config/.env
+# Support multiple possible till codes per shop (list) so you can add aliases
+SHOP_MAP = {
+    "Riverroad": ["5710325", "600977"],
+    "Epcom": ["5710327"],
+    "Crossroad": ["5623778"],
+}
+
 class ModernButton(tk.Button):
     """Modern styled button with hover effects"""
     def __init__(self, parent, text, command=None, style="primary", **kwargs):
@@ -661,6 +670,19 @@ class LoginPage(Card):
         self.server_entry.insert(0, SERVER_URL or 'http://localhost:5000')
         self.server_entry.pack(side="left", fill="x", expand=True, ipady=4)
 
+        # Shop selector
+        shop_row = tk.Frame(frame, bg=SURFACE)
+        shop_row.pack(fill="x", pady=8)
+        tk.Label(shop_row, text="Shop:", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                 fg=TEXT_PRIMARY, bg=SURFACE, width=20, anchor="w").pack(side="left")
+        self.shop_combo = ttk.Combobox(shop_row, values=list(SHOP_MAP.keys()), state='readonly', font=(FONT_FAMILY, FONT_SIZE))
+        # Default to first shop
+        try:
+            self.shop_combo.set(list(SHOP_MAP.keys())[0])
+        except Exception:
+            pass
+        self.shop_combo.pack(side="left", fill="x", expand=True, ipady=4)
+
         # Username / merchant id
         row2 = tk.Frame(frame, bg=SURFACE)
         row2.pack(fill="x", pady=8)
@@ -695,6 +717,20 @@ class LoginPage(Card):
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
 
+        # Selected shop code (BusinessShortCode) if provided
+        try:
+            shop_name = self.shop_combo.get().strip()
+            shop_codes = SHOP_MAP.get(shop_name)
+            # Normalize to a list of strings or None
+            if isinstance(shop_codes, (list, tuple)):
+                shop_codes = [str(s) for s in shop_codes]
+            elif shop_codes is not None:
+                shop_codes = [str(shop_codes)]
+            else:
+                shop_codes = None
+        except Exception:
+            shop_codes = None
+
         if not username:
             messagebox.showerror('Error', 'Please enter your Merchant ID / username')
             return
@@ -721,13 +757,33 @@ class LoginPage(Card):
 
                 # Start socket.io client (pass server base URL)
                 ws_url = WEBSOCKET_URL or server
-                self.manager.start_ws_client(ws_url, token, merchant_id)
+                # Pass selected shop_code so server-side can filter/join appropriate room
+                try:
+                    # Pass list of shop codes (may be None)
+                    self.manager.start_ws_client(ws_url, token, merchant_id, shop_codes)
+                except TypeError:
+                    # Backwards-compatible: start_ws_client may not accept shop_code in older code
+                    self.manager.start_ws_client(ws_url, token, merchant_id)
 
                 def on_success():
-                    self.status_label.config(text=f"Connected as {merchant_id}")
+                    try:
+                        # Update status to include selected shop name if available
+                        shop_display = shop_name if 'shop_name' in locals() and shop_name else None
+                        if shop_display:
+                            self.status_label.config(text=f"Connected as {merchant_id} ({shop_display})")
+                        else:
+                            self.status_label.config(text=f"Connected as {merchant_id}")
+                    except Exception:
+                        self.status_label.config(text=f"Connected as {merchant_id}")
                     self.connect_btn.config(state='normal', text='Connect')
                     # Store merchant_id in manager for STK push
                     self.manager._current_merchant_id = merchant_id
+                    # Store current shop code for filtering notifications
+                    try:
+                        # store list of shop codes for client-side filtering
+                        self.manager._current_shop_codes = shop_codes
+                    except Exception:
+                        pass
                     # Store server base URL (HTTP) so transactions can be fetched
                     try:
                         self.manager._server_url = server
@@ -880,7 +936,7 @@ class MpesaManager(tk.Tk):
         
 
     # --- WebSocket client for real-time notifications ---
-    def start_ws_client(self, ws_url, token=None, merchant_id=None):
+    def start_ws_client(self, ws_url, token=None, merchant_id=None, shop_codes=None):
         """Start a Socket.IO client to receive server notifications.
 
         Uses python-socketio client. The server should emit 'notification' events with
@@ -922,10 +978,25 @@ class MpesaManager(tk.Tk):
                 pass
             # Join merchant room if merchant_id provided (optional; server currently broadcasts to all)
             try:
+                payload = {}
                 if merchant_id:
-                    self._sio.emit('join', {'merchant_id': merchant_id})
+                    payload['merchant_id'] = merchant_id
                     # remember current merchant id on successful connect
                     self._current_merchant_id = merchant_id
+                if shop_codes:
+                    # send shop codes as comma-separated string for server-side parsing if needed
+                    if isinstance(shop_codes, (list, tuple)):
+                        payload['shop_codes'] = ','.join([str(s) for s in shop_codes])
+                    else:
+                        payload['shop_code'] = str(shop_codes)
+                    # remember current shop codes on successful connect
+                    try:
+                        self._current_shop_codes = shop_codes
+                    except Exception:
+                        pass
+
+                if payload:
+                    self._sio.emit('join', payload)
             except Exception:
                 pass
 
@@ -964,6 +1035,30 @@ class MpesaManager(tk.Tk):
                 # Proceed if we have a dict with a 'type' field
                 if isinstance(msg, dict) and 'type' in msg:
                     d = msg.get('data', {}) or {}
+
+                    # OPTIONAL: Filter notifications by shop code if configured. Many C2B
+                    # callbacks include 'BusinessShortCode' or 'ShortCode' to indicate the till.
+                    try:
+                        notification_shop = None
+                        # Common places where the till/shortcode appears
+                        if isinstance(d, dict):
+                            notification_shop = d.get('BusinessShortCode') or d.get('ShortCode') or d.get('Shortcode')
+                        # Also check top-level payload keys as fallback
+                        if not notification_shop and isinstance(msg.get('data'), dict):
+                            notification_shop = msg.get('data').get('BusinessShortCode') or msg.get('data').get('ShortCode')
+
+                        # If app has a selected shop and notification identifies a shop but it doesn't match, ignore
+                        if hasattr(self, '_current_shop_codes') and self._current_shop_codes and notification_shop:
+                            # normalize stored codes to strings
+                            try:
+                                codes = [str(x) for x in self._current_shop_codes] if isinstance(self._current_shop_codes, (list, tuple)) else [str(self._current_shop_codes)]
+                            except Exception:
+                                codes = [str(self._current_shop_codes)]
+                            if str(notification_shop) not in codes:
+                                # Not for our currently selected shop — ignore
+                                return
+                    except Exception:
+                        pass
 
                     # Default display values
                     ttime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

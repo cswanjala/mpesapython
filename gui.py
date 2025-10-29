@@ -856,6 +856,16 @@ class MpesaManager(tk.Tk):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Get current merchant_id if logged in
         merchant_id = getattr(self, '_current_merchant_id', None)
+        # Get current shop shortcode to use as PartyB (may be list)
+        shop_codes = getattr(self, '_current_shop_codes', None)
+        shortcode_to_use = None
+        try:
+            if isinstance(shop_codes, (list, tuple)) and len(shop_codes) > 0:
+                shortcode_to_use = str(shop_codes[0])
+            elif shop_codes is not None:
+                shortcode_to_use = str(shop_codes)
+        except Exception:
+            shortcode_to_use = None
         
         # Add a quick log entry that Send was clicked
         try:
@@ -869,7 +879,11 @@ class MpesaManager(tk.Tk):
         def worker():
             try:
                 # Use the reusable client module to perform STK push
-                resp = mpesa_client.lipa_na_mpesa_online(phone, int(amount))
+                # If a shop shortcode is selected, pass it as the shortcode/PartyB
+                if shortcode_to_use:
+                    resp = mpesa_client.lipa_na_mpesa_online(phone, int(amount), merchant_id=merchant_id, shortcode=shortcode_to_use)
+                else:
+                    resp = mpesa_client.lipa_na_mpesa_online(phone, int(amount), merchant_id=merchant_id)
                 print(resp)
                 stk_resp_text = getattr(resp, 'text', '')
 

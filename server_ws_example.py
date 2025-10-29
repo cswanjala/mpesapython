@@ -21,7 +21,7 @@ import os
 import sqlite3
 import json
 from itsdangerous import URLSafeSerializer
-from datetime import datetime
+from datetime import datetime, UTC
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'callbacks.db')
 
@@ -78,7 +78,7 @@ def stk_callback():
     except Exception:
         payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'stk', payload_text, datetime.utcnow().isoformat()))
+              (merchant, 'stk', payload_text, datetime.now(UTC).isoformat()))
     conn.commit()
     conn.close()
 
@@ -105,7 +105,7 @@ def c2b_callback():
     except Exception:
         payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'c2b_confirmation', payload_text, datetime.utcnow().isoformat()))
+              (merchant, 'c2b_confirmation', payload_text, datetime.now(UTC).isoformat()))
     conn.commit()
     conn.close()
 
@@ -133,7 +133,7 @@ def c2b_validation():
     except Exception:
         payload_text = str(data)
     c.execute('INSERT INTO callbacks (merchant_id, type, payload, created_at) VALUES (?, ?, ?, ?)',
-              (merchant, 'c2b_validation', payload_text, datetime.utcnow().isoformat()))
+              (merchant, 'c2b_validation', payload_text, datetime.now(UTC).isoformat()))
     conn.commit()
     conn.close()
 
@@ -198,7 +198,7 @@ def on_connect():
     except Exception:
         sid = 'unknown'
     addr = request.remote_addr if hasattr(request, 'remote_addr') else 'unknown'
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     # Print query params to help debug merchant_id passing
     try:
         args = request.args.to_dict()
@@ -225,7 +225,7 @@ def on_join(data):
             sid = request.sid
         except Exception:
             sid = 'unknown'
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         print(f"[{now}] sid={sid} joined room {merchant} via join event")
 
 @socketio.on('disconnect')
@@ -234,7 +234,7 @@ def on_disconnect():
         sid = request.sid
     except Exception:
         sid = 'unknown'
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     print(f"[{now}] Client disconnected: sid={sid}")
 
 if __name__ == '__main__':

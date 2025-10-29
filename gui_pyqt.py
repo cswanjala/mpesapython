@@ -9,11 +9,318 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QFormLayout, QFrame,
     QGroupBox, QScrollArea, QSizePolicy
 )
-from PyQt6.QtCore import QObject, pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QFont, QPalette, QColor, QIcon, QPixmap
+from PyQt6.QtCore import QObject, pyqtSignal, Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QFont, QPalette, QColor, QIcon, QPixmap, QGuiApplication, QScreen
 
 import mpesa_client
 from config import SERVER_URL, WEBSOCKET_URL, SHOP_MAP
+import ctypes
+import platform
+
+# Optional Windows native toast notifier (for sound and system toast)
+try:
+    from winotify import Notification, audio
+    _HAS_WINOTIFY = True
+except Exception:
+    _HAS_WINOTIFY = False
+
+
+class GlobalOverlayWindow(QWidget):
+    """A truly global overlay that appears on top of ALL applications including fullscreen games"""
+    
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        
+        # CRITICAL: Set window flags for true global overlay
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint |          # Always on top
+            Qt.WindowType.FramelessWindowHint |           # No title bar
+            Qt.WindowType.Tool |                          # No taskbar entry
+            Qt.WindowType.SubWindow |                     # Make it a sub-window
+            Qt.WindowType.WindowDoesNotAcceptFocus |      # Don't take focus
+            Qt.WindowType.X11BypassWindowManagerHint      # Bypass window manager (Linux)
+        )
+        # Set window to be always on top
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop, True)
+        
+        # Make it a transparent overlay container
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+
+        # Cover the entire screen but transparent
+        screen = QGuiApplication.primaryScreen()
+        # use full screen geometry so overlay covers fullscreen apps
+        geom = screen.geometry()
+        self.setGeometry(geom)
+
+        # Create the actual notification card and keep reference
+        self.notification_card = NotificationCard(title, message, self)
+        self.notification_card.dismissed.connect(self.close)
+
+        # Position card at center of the screen
+        self.position_notification()
+
+        # Auto-close timer
+        self.auto_close_timer = QTimer()
+        self.auto_close_timer.setSingleShot(True)
+        self.auto_close_timer.timeout.connect(self.animate_out)
+        self.auto_close_timer.start(8000)  # 8 seconds
+        
+    def position_notification(self):
+        """Position the notification card at bottom-right of screen"""
+        # Center the notification card on the overlay (works across multi-monitor)
+        screen_geo = QGuiApplication.primaryScreen().geometry()
+        card_width = self.notification_card.width()
+        card_height = self.notification_card.height()
+
+        x = screen_geo.x() + (screen_geo.width() - card_width) // 2
+        y = screen_geo.y() + (screen_geo.height() - card_height) // 2
+
+        self.notification_card.move(x, y)
+        
+    def showEvent(self, event):
+        """Animate in when shown"""
+        super().showEvent(event)
+        # Ensure overlay is set top-most on the platform
+        try:
+            self._set_topmost()
+        except Exception:
+            pass
+
+        # Animate the card in
+        self.notification_card.animate_in()
+        
+    def animate_out(self):
+        """Animate out and close"""
+        self.notification_card.animate_out()
+        QTimer.singleShot(300, self.close)  # Close after animation
+
+    def _set_topmost(self):
+        """Platform-specific attempts to ensure the overlay stays above fullscreen apps.
+
+        On Windows we call SetWindowPos with HWND_TOPMOST. On other platforms we rely on
+        Qt window flags (WindowStaysOnTopHint).
+        """
+        if platform.system() == 'Windows':
+            try:
+                # HWND_TOPMOST = -1
+                HWND_TOPMOST = -1
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_SHOWWINDOW = 0x0040
+                flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+                hwnd = int(self.winId())
+                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+            except Exception:
+                pass
+        else:
+            # For other platforms rely on Qt's Always on Top hint
+            try:
+                self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+                self.raise_()
+                self.activateWindow()
+            except Exception:
+                pass
+
+
+class NotificationCard(QWidget):
+    """The actual notification card that appears within the global overlay"""
+    
+    dismissed = pyqtSignal()
+    
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        
+        # Make the card itself a proper window
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
+        self.setFixedSize(400, 200)
+        
+        # Modern card styling
+        self.setStyleSheet("""
+            NotificationCard {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 white, stop:1 #f8fafc);
+                border: 2px solid #2563eb;
+                border-radius: 12px;
+                padding: 0px;
+            }
+        """)
+        
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+        
+        # Header with icon and title
+        header_layout = QHBoxLayout()
+        
+        # Notification icon
+        icon_label = QLabel("💳")
+        icon_label.setStyleSheet("font-size: 24px;")
+        header_layout.addWidget(icon_label)
+        
+        # Title
+        title_label = QLabel(title)
+        title_label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0px;
+        """)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        
+        # Close button
+        close_btn = QPushButton("×")
+        close_btn.setFixedSize(24, 24)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ef4444;
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #dc2626;
+            }
+        """)
+        close_btn.clicked.connect(self.on_dismiss)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        header_layout.addWidget(close_btn)
+        
+        layout.addLayout(header_layout)
+        
+        # Message content
+        message_label = QLabel(message)
+        message_label.setStyleSheet("""
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.4;
+        """)
+        message_label.setWordWrap(True)
+        layout.addWidget(message_label)
+        
+        # Timestamp
+        timestamp = QLabel(datetime.now().strftime("%H:%M:%S"))
+        timestamp.setStyleSheet("""
+            font-size: 12px;
+            color: #94a3b8;
+            font-style: italic;
+        """)
+        layout.addWidget(timestamp)
+        
+        # Action buttons
+        button_layout = QHBoxLayout()
+        
+        view_btn = QPushButton("View Details")
+        view_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+        """)
+        view_btn.clicked.connect(self.on_view_details)
+        view_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        dismiss_btn = QPushButton("Dismiss")
+        dismiss_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #64748b;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #475569;
+            }
+        """)
+        dismiss_btn.clicked.connect(self.on_dismiss)
+        dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        button_layout.addWidget(view_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(dismiss_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+        
+        # Setup animation
+        self.setup_animation()
+        
+    def setup_animation(self):
+        """Setup slide-in/slide-out animations"""
+        # Slide in from right animation
+        self.animation_in = QPropertyAnimation(self, b"geometry")
+        self.animation_in.setDuration(400)
+        self.animation_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+        
+        # Slide out to right animation
+        self.animation_out = QPropertyAnimation(self, b"geometry")
+        self.animation_out.setDuration(300)
+        self.animation_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        
+    def animate_in(self):
+        """Animate sliding in from right"""
+        screen_geo = QGuiApplication.primaryScreen().availableGeometry()
+        start_geo = QRect(
+            screen_geo.width(),  # Start off-screen to the right
+            self.y(),
+            self.width(),
+            self.height()
+        )
+        end_geo = QRect(
+            screen_geo.width() - self.width() - 20,  # End 20px from right edge
+            self.y(),
+            self.width(),
+            self.height()
+        )
+        
+        self.animation_in.setStartValue(start_geo)
+        self.animation_in.setEndValue(end_geo)
+        self.animation_in.start()
+        
+    def animate_out(self):
+        """Animate sliding out to right"""
+        current_geo = self.geometry()
+        end_geo = QRect(
+            QGuiApplication.primaryScreen().availableGeometry().width(),
+            current_geo.y(),
+            current_geo.width(),
+            current_geo.height()
+        )
+        
+        self.animation_out.setStartValue(current_geo)
+        self.animation_out.setEndValue(end_geo)
+        self.animation_out.start()
+        
+    def on_view_details(self):
+        """Bring main application to front when View Details is clicked"""
+        try:
+            # Find and activate the main window
+            for widget in QApplication.topLevelWidgets():
+                if isinstance(widget, MainWindow):
+                    widget.show()
+                    widget.raise_()
+                    widget.activateWindow()
+                    break
+        except Exception:
+            pass
+        self.on_dismiss()
+        
+    def on_dismiss(self):
+        """Dismiss the notification"""
+        self.animate_out()
+        QTimer.singleShot(300, self.dismissed.emit)
 
 
 class ModernButton(QPushButton):
@@ -31,13 +338,12 @@ class ModernButton(QPushButton):
                 border: none;
                 border-radius: 6px;
                 font-weight: 600;
-                transition: all 0.2s;
             }
             QPushButton:hover {
-                transform: translateY(-1px);
+                margin-top: -1px;
             }
             QPushButton:pressed {
-                transform: translateY(1px);
+                margin-top: 1px;
             }
         """
         
@@ -321,9 +627,13 @@ class WSClient(QObject):
             @self._sio.on('notification')
             def on_notification(msg):
                 try:
+                    print(f"[WSClient Debug] Received notification from server: {msg}")
                     self.signals.notification.emit(msg)
-                except Exception:
-                    pass
+                    print("[WSClient Debug] Notification emitted to GUI")
+                except Exception as e:
+                    print(f"[WSClient Error] Failed to handle notification: {e}")
+                    import traceback
+                    print(traceback.format_exc())
 
             connect_params = {}
             if self.token:
@@ -490,10 +800,8 @@ class LoginWidget(QWidget):
         self.connect_btn.setText("Connect to Server")
 
     def _on_notification(self, payload):
-        try:
-            QMessageBox.information(self, 'Notification', str(payload))
-        except Exception:
-            pass
+        # This will now use the global overlay
+        pass
 
 
 class DashboardWidget(QWidget):
@@ -715,7 +1023,7 @@ class TransactionsWidget(QWidget):
             self.refresh_btn.setText("Refresh")
             
         threading.Thread(target=self._refresh_data, daemon=True).start()
-        QTimer.singleShot(2000, refresh_complete)  # Re-enable after 2 seconds
+        QTimer.singleShot(2000, refresh_complete)
 
     def _refresh_data(self):
         self.load_from_server()
@@ -745,9 +1053,12 @@ class TransactionsWidget(QWidget):
     def load_from_server(self, server_url=None, limit=100):
         import requests
         if not server_url:
-            server_url = SERVER_URL
+            server_url = SERVER_URL or "http://localhost:5000"  # Default to localhost if not configured
+            
+        print(f"[GUI Debug] Using server URL: {server_url}")
             
         if not server_url:
+            print("[GUI Debug] No server URL configured for transactions")
             self.add_transaction("No server URL configured")
             return
             
@@ -755,13 +1066,16 @@ class TransactionsWidget(QWidget):
             url = f"{server_url}/api/transactions"
             if limit:
                 url += f"?limit={limit}"
+            print(f"[GUI Debug] Loading transactions from: {url}")
             resp = requests.get(url, timeout=10)
             resp.raise_for_status()
             
-            # Clear existing data
+            data = resp.json()
+            print(f"[GUI Debug] Received {len(data)} transactions from server")
+            
             self.table.setRowCount(0)
             
-            for tx in resp.json():
+            for tx in data:
                 self.add_transaction(
                     tx.get('time', ''),
                     tx.get('amount', ''),
@@ -769,8 +1083,12 @@ class TransactionsWidget(QWidget):
                     tx.get('status', ''),
                     tx.get('transaction_id', '')
                 )
+            print("[GUI Debug] Transaction table updated successfully")
                 
         except Exception as e:
+            print(f"[GUI Error] Failed to load transactions: {e}")
+            import traceback
+            print(traceback.format_exc())
             self.add_transaction(f'Failed to load transactions: {e}')
 
 
@@ -991,6 +1309,7 @@ class SettingsWidget(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        print("[GUI Debug] Initializing MainWindow")
         self.setWindowTitle('M-Pesa Manager - Professional Payment Gateway')
         self.resize(1200, 800)
         
@@ -1001,6 +1320,7 @@ class MainWindow(QMainWindow):
             }
         """)
         
+        print("[GUI Debug] Creating central container")
         # Central container with sidebar + stacked pages
         container = QWidget()
         h = QHBoxLayout()
@@ -1008,11 +1328,13 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(0, 0, 0, 0)
         container.setLayout(h)
         self.setCentralWidget(container)
-
+        
+        print("[GUI Debug] Setting up sidebar")
         # Sidebar and pages
         self.sidebar = SidebarWidget()
         h.addWidget(self.sidebar)
-
+        
+        print("[GUI Debug] Creating content area")
         # Main content area
         self.content_area = QStackedWidget()
         self.content_area.setStyleSheet("""
@@ -1022,21 +1344,20 @@ class MainWindow(QMainWindow):
             }
         """)
         h.addWidget(self.content_area, 1)
-
+        
+        print("[GUI Debug] Initializing pages")
         # Initialize pages
         self.login = LoginWidget()
         self.dashboard = DashboardWidget()
         self.transactions = TransactionsWidget()
         self.settings = SettingsWidget()
-
+        
+        print("[GUI Debug] Adding pages to stacked widget")
         self.content_area.addWidget(self.login)
         self.content_area.addWidget(self.dashboard)
         self.content_area.addWidget(self.transactions)
         self.content_area.addWidget(self.settings)
-
-        # Default to login
-        self.content_area.setCurrentWidget(self.login)
-
+        
         # Connect signals
         self.login.connected.connect(self.on_connected)
         
@@ -1045,11 +1366,38 @@ class MainWindow(QMainWindow):
         self.sidebar.nav_buttons['transactions'].clicked.connect(lambda: self.switch_page('transactions'))
         self.sidebar.nav_buttons['settings'].clicked.connect(lambda: self.switch_page('settings'))
         self.sidebar.nav_buttons['connect'].clicked.connect(lambda: self.switch_page('login'))
-
+        
         # Store current state
         self._wsclient = None
         self._merchant_id = None
         self._shop_codes = None
+        self._current_overlay = None
+        
+        print("[GUI Debug] MainWindow initialization complete")
+        
+    def _on_notification(self, msg):
+        """Handle incoming notifications by showing GLOBAL overlay"""
+        try:
+            print(f"[GUI Debug] _on_notification received message: {msg}")
+            formatted = self._format_notification(msg)
+            
+            # Add to dashboard history
+            self.dashboard.append_history(f"🔔 {formatted}")
+            
+            # Add to transactions
+            self.transactions.add_transaction(formatted)
+            
+            # Show GLOBAL overlay that appears over everything
+            self.show_global_overlay("Payment Notification", formatted)
+            
+            print("[GUI Debug] Notification processed successfully")
+            
+        except Exception as e:
+            print(f"[GUI Error] Error handling notification: {e}")
+            import traceback
+            print(traceback.format_exc())
+        
+        
 
     def switch_page(self, page_name):
         page_map = {
@@ -1080,11 +1428,16 @@ class MainWindow(QMainWindow):
         self.content_area.setCurrentWidget(self.dashboard)
         self.dashboard.set_context(merchant_id, shop_codes)
 
-        # Connect notifications
+        # Connect notifications - THIS IS THE KEY PART
         try:
-            wsclient.signals.notification.connect(self._handle_notification)
-        except Exception:
-            pass
+            print("[GUI Debug] Setting up notification handler...")
+            # Connect to the correct signal method
+            wsclient.signals.notification.connect(self._on_notification)
+            print("[GUI Debug] Notification handler connected successfully")
+        except Exception as e:
+            print(f"[GUI Error] Failed to connect notification handler: {e}")
+            import traceback
+            print(traceback.format_exc())
 
         # Pre-load transactions
         try:
@@ -1093,15 +1446,64 @@ class MainWindow(QMainWindow):
             pass
 
     def _handle_notification(self, msg):
+        """Handle incoming notifications by showing GLOBAL overlay"""
         try:
             formatted = self._format_notification(msg)
+            
+            # Add to dashboard history
             self.dashboard.append_history(f"🔔 {formatted}")
+            
+            # Add to transactions
             self.transactions.add_transaction(formatted)
-        except Exception:
-            pass
+            
+            # Show GLOBAL overlay that appears over everything
+            self.show_global_overlay("Payment Notification", formatted)
+            
+        except Exception as e:
+            print(f"Error handling notification: {e}")
+
+    def show_global_overlay(self, title: str, message: str):
+        """Show a truly global overlay that appears over ALL applications"""
+        try:
+            print(f"[GUI Debug] Showing global overlay - Title: {title}, Message: {message}")
+
+            # On Windows prefer native toast (with sound) which integrates with Action Center
+            if platform.system() == 'Windows' and _HAS_WINOTIFY:
+                try:
+                    toast = Notification(app_id="M-Pesa Manager",
+                                          title=title,
+                                          msg=message,
+                                          duration="short")
+                    # Use default system sound
+                    toast.set_audio(audio.Default, loop=False)
+                    toast.show()
+                    print("[GUI Debug] Windows toast notification shown")
+                    # Still create overlay as fallback/visual within app
+                except Exception as e:
+                    print(f"[GUI Error] Failed to show Windows toast: {e}")
+
+            # Create and show the global overlay (fallback/in-app visual)
+            overlay = GlobalOverlayWindow(title, message)
+
+            # Store reference to prevent garbage collection
+            self._current_overlay = overlay
+
+            # Show the overlay window
+            overlay.show()
+            overlay.raise_()  # Ensure it's on top
+            overlay.activateWindow()  # Make it active
+
+            print("[GUI Debug] Global overlay displayed successfully")
+            
+        except Exception as e:
+            print(f"[GUI Error] Failed to show global overlay: {e}")
+            import traceback
+            print(traceback.format_exc())
 
     def _format_notification(self, msg):
+        """Format notification message for display"""
         try:
+            print(f"[GUI Debug] Formatting notification: {msg}")  # Debug logging
             if isinstance(msg, dict):
                 d = msg.get('data', {}) or {}
                 t = msg.get('type', '')
@@ -1111,7 +1513,9 @@ class MainWindow(QMainWindow):
                     amt = d.get('TransAmount') or d.get('Amount') or ''
                     phone = d.get('MSISDN') or d.get('Phone') or ''
                     name = (d.get('FirstName') or '') + ' ' + (d.get('LastName') or '')
-                    return f"{t} — Amount: KES {amt} | Phone: {phone} | Ref: {txid} | {name}".strip()
+                    formatted = f"💰 New Payment Received!\nAmount: KES {amt}\nFrom: {phone}\nReference: {txid}\nCustomer: {name.strip()}"
+                    print(f"[GUI Debug] Formatted notification: {formatted}")  # Debug logging
+                    return formatted
 
                 if 'stkCallback' in str(d) or 'stkCallback' in str(msg):
                     stk = None
@@ -1137,12 +1541,17 @@ class MainWindow(QMainWindow):
                                     amt = str(val)
                                 if name.lower() in ('phonenumber', 'phone'):
                                     phone = str(val)
-                        status = f"{'SUCCESS' if res_code == 0 else 'FAILED'} - {res_desc}" if res_desc else f"Code {res_code}"
-                        return f"STK {status} | Amount: KES {amt} | Phone: {phone} | Tx: {txid}".strip()
+                        
+                        if res_code == 0:
+                            return f"✅ Payment Successful!\nAmount: KES {amt}\nPhone: {phone}\nReceipt: {txid}"
+                        else:
+                            return f"❌ Payment Failed\nReason: {res_desc}\nPhone: {phone}"
 
-            return str(msg)
+            # Fallback for unknown format
+            return f"New Notification:\n{str(msg)}"
+            
         except Exception:
-            return str(msg)
+            return f"New Notification:\n{str(msg)}"
 
 
 def main():
@@ -1152,8 +1561,18 @@ def main():
     font = QFont("Segoe UI", 10)
     app.setFont(font)
     
+    print("[GUI Debug] Starting application...")
     mw = MainWindow()
+    print("[GUI Debug] Main window created")
+    
+    # Default to login widget on startup
+    mw.content_area.setCurrentWidget(mw.login)
+    print("[GUI Debug] Set initial widget to login")
+    
+    # Show the window
     mw.show()
+    print("[GUI Debug] Main window displayed")
+    
     sys.exit(app.exec())
 
 

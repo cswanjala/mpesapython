@@ -22,6 +22,13 @@ SERVER_URL = os.getenv('SERVER_URL')
 LOGIN_URL = os.getenv('LOGIN_URL')
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
 
+# Shop configuration mapping shop names to their till numbers
+SHOP_MAP = {
+    'Riverroad': ['5710325', '600977'],  # Multiple till numbers for Riverroad
+    'Epcom': '5710327',     # Single till number
+    'Crossroad': '5623778'  # Single till number
+}
+
 # Helper to get raw env if needed
 def get(key, default=None):
     return os.getenv(key, default)

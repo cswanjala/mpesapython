@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QComboBox, QMessageBox, QTextEdit, QStackedWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QFormLayout, QFrame,
-    QGroupBox, QScrollArea, QSizePolicy
+    QGroupBox, QScrollArea, QSizePolicy, QGraphicsDropShadowEffect
 )
 from PyQt6.QtCore import QObject, pyqtSignal, Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect
 from PyQt6.QtGui import QFont, QPalette, QColor, QIcon, QPixmap, QGuiApplication, QScreen
@@ -74,13 +74,11 @@ class MultiDesktopNotificationWindow(QWidget):
             self.center_notification_on_screen(card, screen)
             
     def center_notification_on_screen(self, card, screen):
-        """Position the notification card at absolute center of a specific screen"""
-        screen_geo = screen.geometry()
-        card_width = card.width()
-        card_height = card.height()
-
-        x = screen_geo.x() + (screen_geo.width() - card_width) // 2
-        y = screen_geo.y() + (screen_geo.height() - card_height) // 2
+        """Position the notification card at bottom-right of the given screen (like a toast)"""
+        geo = screen.geometry()
+        margin = 32
+        x = geo.x() + geo.width() - card.width() - margin
+        y = geo.y() + geo.height() - card.height() - margin
 
         card.move(x, y)
         card.show()
@@ -190,70 +188,56 @@ class MultiDesktopNotificationWindow(QWidget):
 
 
 class PaymentNotificationCard(QWidget):
-    """A large, prominent payment notification card that demands attention"""
-    
+    """A toast-style payment notification card (small, bottom-right, rounded, shadowed)"""
     dismissed = pyqtSignal()
-    
+
     def __init__(self, title: str, message: str, parent=None):
         super().__init__(parent)
-        
-        # Make the card large and prominent with multi-desktop support
         self.setWindowFlags(
-            Qt.WindowType.WindowStaysOnTopHint | 
+            Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.Tool |
-            Qt.WindowType.MSWindowsFixedSizeDialogHint  # Better for virtual desktops
+            Qt.WindowType.Tool
         )
-        self.setFixedSize(500, 350)
-        
-        # Eye-catching styling
+        self.setFixedSize(340, 110)
         self.setStyleSheet("""
-            PaymentNotificationCard {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #ffffff, stop:1 #f0f9ff);
-                border: 3px solid #059669;
+            QWidget {
+                background: rgba(30, 41, 59, 0.96);
                 border-radius: 16px;
-                padding: 0px;
+                border: 1.5px solid #2563eb;
+                color: #f1f5f9;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
             }
         """)
-        
         layout = QVBoxLayout()
-        layout.setContentsMargins(25, 25, 25, 25)
-        layout.setSpacing(20)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(6)
         
-        # Header with large icon and title
+        # Header: icon and title
         header_layout = QHBoxLayout()
         
-        # Large payment icon
         icon_label = QLabel("💰")
-        icon_label.setStyleSheet("font-size: 36px; margin-right: 15px;")
+        icon_label.setStyleSheet("font-size: 22px; margin-right: 8px;")
         header_layout.addWidget(icon_label)
         
-        # Main title
         title_label = QLabel(title)
-        title_label.setStyleSheet("""
-            font-size: 24px;
-            font-weight: 800;
-            color: #065f46;
-            margin: 0px;
-        """)
+        title_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #f1f5f9; margin: 0px;")
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
-        # Close button
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(32, 32)
+        close_btn = QPushButton("×")
+        close_btn.setFixedSize(22, 22)
         close_btn.setStyleSheet("""
             QPushButton {
-                background-color: #dc2626;
-                color: white;
+                background-color: transparent;
+                color: #f1f5f9;
                 border: none;
-                border-radius: 16px;
-                font-size: 16px;
+                border-radius: 11px;
+                font-size: 15px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #b91c1c;
+                background-color: #ef4444;
+                color: white;
             }
         """)
         close_btn.clicked.connect(self.on_dismiss)
@@ -262,207 +246,70 @@ class PaymentNotificationCard(QWidget):
         
         layout.addLayout(header_layout)
         
-        # Payment message content
+        # Message content
         message_label = QLabel(message)
-        message_label.setStyleSheet("""
-            font-size: 18px;
-            color: #1f2937;
-            line-height: 1.6;
-            font-weight: 500;
-        """)
+        message_label.setStyleSheet("font-size: 13px; color: #e0e7ef; line-height: 1.5; margin-top: 2px;")
         message_label.setWordWrap(True)
-        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(message_label)
         
-        # Payment amount highlight
-        amount = self._extract_amount(message)
-        if amount:
-            amount_label = QLabel(f"KES {amount}")
-            amount_label.setStyleSheet("""
-                font-size: 28px;
-                font-weight: 800;
-                color: #059669;
-                background-color: #d1fae5;
-                border: 2px solid #10b981;
-                border-radius: 10px;
-                padding: 10px;
-                margin: 10px 0px;
-            """)
-            amount_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(amount_label)
-        
         # Timestamp
-        timestamp = QLabel(f"Received at {datetime.now().strftime('%H:%M:%S')}")
-        timestamp.setStyleSheet("""
-            font-size: 14px;
-            color: #6b7280;
-            font-style: italic;
-        """)
+        timestamp = QLabel(datetime.now().strftime("%H:%M:%S"))
+        timestamp.setStyleSheet("font-size: 11px; color: #a5b4fc; font-style: italic; margin-top: 2px;")
         layout.addWidget(timestamp)
         
-        # Action buttons
-        button_layout = QHBoxLayout()
-        
-        view_btn = QPushButton("📋 View Transaction Details")
-        view_btn.setFixedHeight(44)
-        view_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2563eb;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-size: 16px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #1d4ed8;
-            }
-        """)
-        view_btn.clicked.connect(self.on_view_details)
-        view_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        dismiss_btn = QPushButton("Dismiss")
-        dismiss_btn.setFixedHeight(44)
-        dismiss_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6b7280;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-size: 16px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #4b5563;
-            }
-        """)
-        dismiss_btn.clicked.connect(self.on_dismiss)
-        dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        button_layout.addWidget(view_btn)
-        button_layout.addStretch()
-        button_layout.addWidget(dismiss_btn)
-        
-        layout.addLayout(button_layout)
         self.setLayout(layout)
         
-        # Setup animation
-        self.setup_animation()
+        # Fade in effect
+        self.setWindowOpacity(0.0)
+        self.fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self.fade_anim.setDuration(350)
+        self.fade_anim.setStartValue(0.0)
+        self.fade_anim.setEndValue(1.0)
+        self.fade_anim.start()
+        
+        # Add drop shadow effect
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(31, 38, 135, 90))
+        self.setGraphicsEffect(shadow)
         
         # Play sound if available
-        self.play_notification_sound()
+        self._play_notification_sound()
         
-    def _extract_amount(self, message):
-        """Extract payment amount from message for highlighting"""
-        try:
-            import re
-            matches = re.findall(r'KES\s*([\d,]+)', message)
-            if matches:
-                return matches[0]
-            matches = re.findall(r'Amount:\s*KES?\s*([\d,]+)', message)
-            if matches:
-                return matches[0]
-        except:
-            pass
-        return None
-        
-    def play_notification_sound(self):
+    def _play_notification_sound(self):
         """Play a notification sound on ALL platforms"""
         try:
             if platform.system() == 'Windows':
                 import winsound
-                # Play a more attention-grabbing sound
                 winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS)
-                # Additional beep for extra attention
-                winsound.Beep(1000, 500)
             elif platform.system() == 'Darwin':  # macOS
                 import os
                 os.system('afplay /System/Library/Sounds/Glass.aiff &')
             elif platform.system() == 'Linux':
                 import os
                 os.system('paplay /usr/share/sounds/freedesktop/stereo/message.oga &')
-        except:
-            pass
-        
+        except Exception as e:
+            print(f"[Toast] Sound error: {e}")
+            
     def setup_animation(self):
-        """Setup attention-grabbing animations"""
-        self.animation_in = QPropertyAnimation(self, b"geometry")
-        self.animation_in.setDuration(600)
-        self.animation_in.setEasingCurve(QEasingCurve.Type.OutBack)
-        
-        self.pulse_animation = QPropertyAnimation(self, b"windowOpacity")
-        self.pulse_animation.setDuration(1000)
-        self.pulse_animation.setStartValue(1.0)
-        self.pulse_animation.setEndValue(0.95)
-        self.pulse_animation.setLoopCount(8)
-        
+        pass  # No longer needed for toast style
+    
     def animate_in(self):
-        """Animate with scale effect for attention"""
-        # Get the screen this card is on
-        screen = QGuiApplication.screenAt(self.pos())
-        if not screen:
-            screen = QGuiApplication.primaryScreen()
-            
-        screen_geo = screen.geometry()
-        center_x = screen_geo.x() + (screen_geo.width() - self.width()) // 2
-        center_y = screen_geo.y() + (screen_geo.height() - self.height()) // 2
-        
-        # Start from small size in center
-        start_geo = QRect(
-            center_x + self.width() // 4,
-            center_y + self.height() // 4,
-            self.width() // 2,
-            self.height() // 2
-        )
-        
-        # End at full size
-        end_geo = QRect(center_x, center_y, self.width(), self.height())
-        
-        self.animation_in.setStartValue(start_geo)
-        self.animation_in.setEndValue(end_geo)
-        self.animation_in.start()
-        
-        QTimer.singleShot(600, self.pulse_animation.start)
-        
+        # Fade in (already handled in __init__)
+        pass
+    
     def animate_out(self):
-        """Animate scaling out"""
-        current_geo = self.geometry()
-        screen = QGuiApplication.screenAt(self.pos())
-        if not screen:
-            screen = QGuiApplication.primaryScreen()
-            
-        screen_geo = screen.geometry()
-        center_x = screen_geo.x() + screen_geo.width() // 2
-        center_y = screen_geo.y() + screen_geo.height() // 2
-        
-        end_geo = QRect(center_x, center_y, 0, 0)
-        
-        animation_out = QPropertyAnimation(self, b"geometry")
-        animation_out.setDuration(400)
-        animation_out.setEasingCurve(QEasingCurve.Type.InBack)
-        animation_out.setStartValue(current_geo)
-        animation_out.setEndValue(end_geo)
-        animation_out.start()
-        
-    def on_view_details(self):
-        """Bring main application to front"""
-        try:
-            for widget in QApplication.topLevelWidgets():
-                if isinstance(widget, MainWindow):
-                    # Try to bring to current virtual desktop
-                    widget.show()
-                    widget.raise_()
-                    widget.activateWindow()
-                    widget.switch_page('transactions')
-                    break
-        except Exception:
-            pass
-        self.on_dismiss()
+        """Fade out and close"""
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setDuration(300)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        fade.finished.connect(self.close)
+        fade.start()
         
     def on_dismiss(self):
-        """Dismiss the notification"""
         self.animate_out()
         QTimer.singleShot(400, self.dismissed.emit)
 
